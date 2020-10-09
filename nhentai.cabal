@@ -39,3 +39,5 @@ test-suite nhentai-test
     , http-types
     , modern-uri
     , refined
+    , tasty
+    , tasty-hunit
