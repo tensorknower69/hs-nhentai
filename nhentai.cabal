@@ -8,7 +8,7 @@ library
   ghc-options: -Wno-tabs
   hs-source-dirs: src
   exposed-modules:
-    Data.NHentai.API
+    Data.NHentai.API.Gallery
   build-depends:
     base >= 4
     , scalpel-core

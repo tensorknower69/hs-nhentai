@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Data.NHentai.API
+module Data.NHentai.API.Gallery
 where
 
 import Control.Error
@@ -10,7 +10,6 @@ import Control.Lens
 import Control.Monad.Catch
 import Data.Aeson
 import Data.Char
--- import Data.List.NonEmpty (:|)
 import Refined
 import Text.URI (URI)
 import Text.URI hiding (URI(..))

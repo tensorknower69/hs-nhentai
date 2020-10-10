@@ -3,7 +3,7 @@
 
 import Data.Aeson
 import Data.Either
-import Data.NHentai.API
+import Data.NHentai.API.Gallery
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import Refined
