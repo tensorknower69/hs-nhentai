@@ -5,6 +5,7 @@
 module Data.NHentai.API.Gallery
 where
 
+import Data.NHentai.Types
 import Control.Error
 import Control.Lens
 import Control.Monad.Catch
@@ -17,19 +18,11 @@ import Text.URI.Lens
 import Text.URI.QQ
 import qualified Data.Text as T
 
-type GalleryID = Refined Positive Int
-type TagID = Refined Positive Int
-type MediaID = T.Text
-type PageIdx = Refined Positive Int
-type NumFavorites = Refined NonNegative Int
-
 mkGalleryApiUrl :: MonadThrow m => GalleryID -> m URI
 mkGalleryApiUrl gid = do
 	let prefix = [uri|https://nhentai.net/api/gallery|]
 	gid_path_piece <- mkPathPiece (T.pack $ show $ unrefine gid)
-	pure $ prefix & uriPath %~ (++ [gid_path_piece])
-
-data TagType = TagTag | LanguageTag | CategoryTag | CharacterTag | GroupTag | ArtistTag deriving (Show, Eq, Read)
+	pure $ prefix & uriPath %~ (<> [gid_path_piece])
 
 capitalize :: [Char] -> [Char]
 capitalize [] = []
@@ -47,8 +40,6 @@ instance FromJSON APITagType where
 			Just j -> pure $ APITagType j
 			Nothing -> fail $ "unknown tag type: " <> show v'
 
-data ImageType = JPG | PNG | GIF deriving (Show, Eq)
-
 newtype APIImageType = APIImageType { unAPIImageType :: ImageType } deriving (Show, Eq)
 
 instance FromJSON APIImageType where
@@ -58,19 +49,14 @@ instance FromJSON APIImageType where
 		"g" -> pure $ APIImageType GIF
 		c -> fail $ "unknown image type: " <> show c
 
-data ImageSpec
-	= ImageSpec
-		{ type'ImageSpec :: ImageType
-		, width'ImageSpec :: Refined Positive Int
-		, height'ImageSpec :: Refined Positive Int
-		}
-	deriving (Show, Eq)
-
 newtype APIImageSpec = APIImageSpec { unAPIImageSpec :: ImageSpec } deriving (Show, Eq)
 
 instance FromJSON APIImageSpec where
 	parseJSON = withObject "APIImageSpec" $ \v -> do
-		APIImageSpec <$> (ImageSpec <$> (unAPIImageType <$> v .: "t") <*> (v .: "w" >>= refineFail) <*> (v .: "h" >>= refineFail))
+		APIImageSpec <$> (ImageSpec
+			<$> (unAPIImageType <$> v .: "t")
+			<*> (v .: "w" >>= refineFail)
+			<*> (v .: "h" >>= refineFail))
 
 data APITag
 	= APITag
