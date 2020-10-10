@@ -11,17 +11,22 @@ library
     Data.NHentai.Types
     Data.NHentai.API.Gallery
     Data.NHentai.API.Comment
+    Data.NHentai.Scraper.HomePage
   build-depends:
     base >= 4
+    , mtl
     , scalpel-core
     , aeson
     , text
+    , split
+    , transformers
     , modern-uri
     , lens
     , exceptions
     , bytestring
     , refined
     , errors
+    , tagsoup
 
 test-suite nhentai-test
   type: exitcode-stdio-1.0

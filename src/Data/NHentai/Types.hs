@@ -20,4 +20,4 @@ data ImageSpec
 		}
 	deriving (Show, Eq)
 
-data ImageType = JPG | PNG | GIF deriving (Show, Eq)
+data ImageType = JPG | PNG | GIF deriving (Show, Eq, Read)

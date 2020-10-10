@@ -5,12 +5,13 @@
 module Data.NHentai.API.Gallery
 where
 
-import Data.NHentai.Types
 import Control.Error
 import Control.Lens
 import Control.Monad.Catch
 import Data.Aeson
 import Data.Char
+import Data.NHentai.Types
+import Data.Text.Lens
 import Refined
 import Text.URI (URI)
 import Text.URI hiding (URI(..))
@@ -21,7 +22,7 @@ import qualified Data.Text as T
 mkGalleryApiUrl :: MonadThrow m => GalleryID -> m URI
 mkGalleryApiUrl gid = do
 	let prefix = [uri|https://nhentai.net/api/gallery|]
-	gid_path_piece <- mkPathPiece (T.pack $ show $ unrefine gid)
+	gid_path_piece <- mkPathPiece (show (unrefine gid) ^. packed)
 	pure $ prefix & uriPath %~ (<> [gid_path_piece])
 
 capitalize :: [Char] -> [Char]
