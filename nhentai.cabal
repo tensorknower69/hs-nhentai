@@ -8,6 +8,7 @@ library
   ghc-options: -Wall -Wno-tabs
   hs-source-dirs: src
   exposed-modules:
+    Data.NHentai.Internal.Utils
     Data.NHentai.Types
     Data.NHentai.API.Gallery
     Data.NHentai.API.Comment
@@ -18,6 +19,7 @@ library
     , scalpel-core
     , aeson
     , text
+    , attoparsec
     , split
     , transformers
     , modern-uri
@@ -27,6 +29,7 @@ library
     , refined
     , errors
     , tagsoup
+    , scientific
 
 executable nhentai-cli
   default-language: Haskell2010
@@ -36,6 +39,19 @@ executable nhentai-cli
   build-depends:
     base >= 4
     , hs-nhentai
+    , refined
+    , scalpel
+    , filepath
+    , directory
+    , modern-uri
+    , errors
+    , stm
+    , aeson
+    , optparse-applicative
+    , bytestring
+    , http-client
+    , http-client-tls
+    , http-types
 
 test-suite hs-nhentai-test
   type: exitcode-stdio-1.0

@@ -1,15 +1,19 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Data.NHentai.API.Gallery
 where
 
+import Data.Attoparsec.Number
+import Control.Applicative
 import Control.Error
 import Control.Lens
+import Data.Scientific
 import Control.Monad.Catch
 import Data.Aeson
-import Data.Char
+import Data.NHentai.Internal.Utils
 import Data.NHentai.Types
 import Data.Text.Lens
 import Refined
@@ -24,10 +28,6 @@ mkGalleryApiUrl gid = do
 	let prefix = [uri|https://nhentai.net/api/gallery|]
 	gid_path_piece <- mkPathPiece (show (unrefine gid) ^. packed)
 	pure $ prefix & uriPath %~ (<> [gid_path_piece])
-
-capitalize :: [Char] -> [Char]
-capitalize [] = []
-capitalize (a:as) = toUpper a : fmap toLower as
 
 toTagType :: [Char] -> Maybe TagType
 toTagType str = readMay (capitalize str <> "Tag")
@@ -71,7 +71,7 @@ data APITag
 
 instance FromJSON APITag where
 	parseJSON = withObject "APITag" $ \v -> APITag
-		<$> v .: "id"
+		<$> (v .: "id")
 		<*> (unAPITagType <$> v .: "type")
 		<*> v .: "name"
 		<*> v .: "url"
@@ -82,7 +82,7 @@ data APIGallery
 		{ id'APIGallery :: GalleryID
 		, mediaId'APIGallery :: MediaID
 		, titleEnglish'APIGallery :: T.Text
-		, titleJapanese'APIGallery :: T.Text
+		, titleJapanese'APIGallery :: Maybe T.Text
 		, titlePretty'APIGallery :: T.Text
 		, pages'APIGallery :: [ImageSpec]
 		, cover'APIGallery :: ImageSpec
@@ -95,18 +95,40 @@ data APIGallery
 		}
 	deriving (Show, Eq)
 
+getPageThumbUrl :: MonadThrow m => APIGallery -> PageIdx -> m URI
+getPageThumbUrl g pid = do
+	let p = (pages'APIGallery g) !! (unrefine pid - 1)
+	let prefix = [uri|https://t.nhentai.net/galleries|]
+	let mid = mediaId'APIGallery g
+	mid_path_piece <- mkPathPiece (show (unrefine mid) ^. packed)
+	image_path_piece <- mkPathPiece (show (unrefine pid) ^. packed <> "t." <> imageTypeExtension (type'ImageSpec p) ^. packed)
+	pure $ prefix & uriPath %~ (<> [mid_path_piece, image_path_piece])
+
 instance FromJSON APIGallery where
-	parseJSON = withObject "APIGallery" $ \v -> APIGallery
-		<$> v .: "id"
-		<*> v .: "media_id"
-		<*> (v .: "title" >>= (.: "english"))
-		<*> (v .: "title" >>= (.: "japanese"))
-		<*> (v .: "title" >>= (.: "pretty"))
-		<*> (fmap unAPIImageSpec <$> (v .: "images" >>= (.: "pages")))
-		<*> (unAPIImageSpec <$> (v .: "images" >>= (.: "cover")))
-		<*> (unAPIImageSpec <$> (v .: "images" >>= (.: "thumbnail")))
-		<*> v .: "scanlator"
-		<*> v .: "upload_date"
-		<*> v .: "tags"
-		<*> v .: "num_pages"
-		<*> v .: "num_favorites"
+	parseJSON = withObject "APIGallery" $ \v -> do
+		APIGallery
+			<$> ( v .: "id" >>= \case
+				Number x -> case floatingOrInteger x of
+					Left f -> fail "is float"
+					Right i -> leftFail . refineThrow $ i
+				String y -> leftFail . refineThrow . read $ y ^. unpacked
+				_ -> fail "unable to parse gallery id"
+			)
+			<*>  ( v .: "media_id" >>= \case
+				Number x -> case floatingOrInteger x of
+					Left f -> fail "is float"
+					Right i -> leftFail . refineThrow $ i
+				String y -> leftFail . refineThrow . read $ y ^. unpacked
+				_ -> fail "unable to parse media id"
+			)
+			<*> (v .: "title" >>= (.: "english"))
+			<*> (v .: "title" >>= (.: "japanese"))
+			<*> (v .: "title" >>= (.: "pretty"))
+			<*> (fmap unAPIImageSpec <$> (v .: "images" >>= (.: "pages")))
+			<*> (unAPIImageSpec <$> (v .: "images" >>= (.: "cover")))
+			<*> (unAPIImageSpec <$> (v .: "images" >>= (.: "thumbnail")))
+			<*> v .: "scanlator"
+			<*> v .: "upload_date"
+			<*> v .: "tags"
+			<*> v .: "num_pages"
+			<*> v .: "num_favorites"

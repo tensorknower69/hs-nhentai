@@ -58,7 +58,7 @@ galleryScraper = do
 	tag_ids <- attr "data-tags" anySelector >>= extractDataTags
 	caption <- castString <$> Scalpel.text ("div" @: [hasClass "caption"])
 	data_src <- castString <$> (attr "data-src" "img") >>= justZ . mkURI
-	media_id   <- data_src ^. uriPath ^? ix 1 . unRText ^. to justZ
+	media_id <- data_src ^. uriPath ^? ix 1 . unRText . unpacked ^. to (justZ >=> readZ >=> refineFail)
 	image_type <- data_src ^. uriPath ^? ix 2 . unRText . from packed . prefixed "thumb." . to (map toUpper) ^. to (justZ >=> readZ)
 	(width, height)  <- traverseOf each scrapDimension ("width", "height")
 	pure $ ScraperGallery gid media_id tag_ids caption (ImageSpec image_type width height)

@@ -8,6 +8,7 @@ import Control.Lens
 import Control.Monad.Catch
 import Data.Aeson
 import Data.NHentai.API.Gallery (mkGalleryApiUrl)
+import Data.NHentai.Internal.Utils
 import Data.NHentai.Types
 import Refined
 import Text.URI (URI)
@@ -31,11 +32,6 @@ data APIPoster
 		, isStaff'APIPoster :: Bool
 		}
 	deriving (Show, Eq)
-
-leftFail :: (Exception a, MonadFail f) => Either a b -> f b
-leftFail = \case
-	Left a -> fail $ show a
-	Right b -> pure b
 
 instance FromJSON APIPoster where
 	parseJSON = withObject "APIPoster" $ \v -> APIPoster
