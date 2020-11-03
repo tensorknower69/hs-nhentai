@@ -9,7 +9,6 @@ module Data.NHentai.Scraper.HomePage where
 
 import Control.Applicative
 import Control.Error
-import Control.Exception.Base
 import Control.Lens
 import Control.Monad
 import Control.Monad.Catch
@@ -33,14 +32,6 @@ data Pagination
 		, last'Pagination :: PageIdx
 		}
 	deriving (Show, Eq)
-
-data PaginationException = NoPageParam | NoParse
-	deriving (Show, Eq)
-instance Exception PaginationException
-
-data ParseException = ParseException String String -- former is the original string, latter is the error message
-	deriving (Show, Eq)
-instance Exception ParseException
 
 paginationScraper :: (Show str, StringLike str) => Scraper str Pagination
 paginationScraper = Pagination <$> current <*> (last' <|> current)
