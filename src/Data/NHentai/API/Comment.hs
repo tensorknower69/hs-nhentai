@@ -2,7 +2,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 
-module Data.NHentai.API.Comment where
+module Data.NHentai.API.Comment
+( mkCommentApiUrl
+, APIPoster(..)
+, APIComment(..)
+)
+where
 
 import Control.Lens
 import Control.Monad.Catch

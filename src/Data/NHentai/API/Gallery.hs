@@ -4,6 +4,12 @@
 {-# LANGUAGE TypeApplications #-}
 
 module Data.NHentai.API.Gallery
+( mkGalleryApiUrl
+, mkPageThumbUrl
+
+, APIGallery(..)
+, APITag(..)
+)
 where
 
 import Control.Error

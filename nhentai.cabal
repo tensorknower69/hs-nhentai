@@ -13,6 +13,7 @@ library
     Data.NHentai.API.Gallery
     Data.NHentai.API.Comment
     Data.NHentai.Scraper.HomePage
+    Data.NHentai.Scraper.Types
   build-depends:
     base >= 4
     , mtl

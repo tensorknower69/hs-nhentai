@@ -19,6 +19,7 @@ import Data.Aeson hiding (json)
 import Data.List.Split
 import Data.NHentai.API.Gallery
 import Data.NHentai.Scraper.HomePage
+import Data.NHentai.Scraper.Types
 import Data.NHentai.Types
 import Data.Time.Clock.POSIX
 import Network.HTTP.Client
