@@ -12,7 +12,6 @@ import Data.NHentai.Internal.Utils
 import Data.NHentai.Types
 import Refined
 import Text.URI (URI)
-import Text.URI hiding (URI(..))
 import Text.URI.Lens
 import Text.URI.QQ
 import qualified Data.Text as T
@@ -38,7 +37,7 @@ instance FromJSON APIPoster where
 		<$> (v .: "id" >>= refineFail)
 		<*> v .: "username"
 		<*> v .: "slug"
-		<*> ((v .: "avatar_url") >>= leftFail . mkURI)
+		<*> ((v .: "avatar_url") >>= mkURIFail)
 		<*> v .: "is_superuser"
 		<*> v .: "is_staff"
 

@@ -6,15 +6,14 @@
 module Data.NHentai.API.Gallery
 where
 
-import Data.Attoparsec.Number
-import Control.Applicative
 import Control.Error
 import Control.Lens
-import Data.Scientific
 import Control.Monad.Catch
 import Data.Aeson
+import Data.Aeson.Types
 import Data.NHentai.Internal.Utils
 import Data.NHentai.Types
+import Data.Scientific
 import Data.Text.Lens
 import Refined
 import Text.URI (URI)
@@ -29,7 +28,7 @@ mkGalleryApiUrl gid = do
 	gid_path_piece <- mkPathPiece (show (unrefine gid) ^. packed)
 	pure $ prefix & uriPath %~ (<> [gid_path_piece])
 
-toTagType :: [Char] -> Maybe TagType
+toTagType :: String -> Maybe TagType
 toTagType str = readMay (capitalize str <> "Tag")
 
 newtype APITagType = APITagType { unAPITagType :: TagType } deriving (Show, Eq)
@@ -88,39 +87,32 @@ data APIGallery
 		, cover'APIGallery :: ImageSpec
 		, thumbnail'APIGallery :: ImageSpec
 		, scanlator'APIGallery :: T.Text
-		, upload_date'APIGallery :: Integer
+		, uploadDate'APIGallery :: Integer
 		, tags'APIGallery :: [APITag]
-		, numPages'APIGallery :: PageIdx
+		, numPages'APIGallery :: PageIndex
 		, numFavorites'APIGallery :: Refined NonNegative Int
 		}
 	deriving (Show, Eq)
 
-getPageThumbUrl :: MonadThrow m => APIGallery -> PageIdx -> m URI
-getPageThumbUrl g pid = do
-	let p = (pages'APIGallery g) !! (unrefine pid - 1)
+mkPageThumbUrl :: MonadThrow m => MediaID -> PageIndex -> ImageType -> m URI
+mkPageThumbUrl mid pid image_type = do
 	let prefix = [uri|https://t.nhentai.net/galleries|]
-	let mid = mediaId'APIGallery g
 	mid_path_piece <- mkPathPiece (show (unrefine mid) ^. packed)
-	image_path_piece <- mkPathPiece (show (unrefine pid) ^. packed <> "t." <> imageTypeExtension (type'ImageSpec p) ^. packed)
+	image_path_piece <- mkPathPiece (show (unrefine pid) ^. packed <> "t." <> imageTypeExtension image_type ^. packed)
 	pure $ prefix & uriPath %~ (<> [mid_path_piece, image_path_piece])
+
+intOrString :: (Read a, Integral a) => Value -> Parser a
+intOrString (Number i) = case floatingOrInteger @Float i of
+	Left _ -> fail "is float"
+	Right a -> pure a
+intOrString (String x) = readZ (x ^. unpacked)
+intOrString _ = fail "neither a String or a Number Int"
 
 instance FromJSON APIGallery where
 	parseJSON = withObject "APIGallery" $ \v -> do
 		APIGallery
-			<$> ( v .: "id" >>= \case
-				Number x -> case floatingOrInteger x of
-					Left f -> fail "is float"
-					Right i -> leftFail . refineThrow $ i
-				String y -> leftFail . refineThrow . read $ y ^. unpacked
-				_ -> fail "unable to parse gallery id"
-			)
-			<*>  ( v .: "media_id" >>= \case
-				Number x -> case floatingOrInteger x of
-					Left f -> fail "is float"
-					Right i -> leftFail . refineThrow $ i
-				String y -> leftFail . refineThrow . read $ y ^. unpacked
-				_ -> fail "unable to parse media id"
-			)
+			<$> (v .: "id" >>= intOrString >>= refineFail)
+			<*> (v .: "media_id" >>= intOrString >>= refineFail)
 			<*> (v .: "title" >>= (.: "english"))
 			<*> (v .: "title" >>= (.: "japanese"))
 			<*> (v .: "title" >>= (.: "pretty"))

@@ -19,7 +19,6 @@ library
     , scalpel-core
     , aeson
     , text
-    , attoparsec
     , split
     , transformers
     , modern-uri
@@ -39,9 +38,17 @@ executable nhentai-cli
   build-depends:
     base >= 4
     , hs-nhentai
+    , monad-logger
+    , text
     , refined
+    , split
+    , streaming
+    , streaming-concurrency
+    , exceptions
     , scalpel
+    , monad-control
     , filepath
+    , time
     , directory
     , modern-uri
     , errors

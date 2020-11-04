@@ -1,23 +1,44 @@
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Main where
 
+import Control.Concurrent
 import Control.Error
-import Data.Aeson
+import Control.Monad
+import Control.Monad.Catch
+import Control.Monad.IO.Class
+import Control.Monad.Logger
+import Control.Monad.Trans.Control
+import Data.Aeson hiding (json)
+import Data.List.Split
+import Data.NHentai.API.Gallery
 import Data.NHentai.Scraper.HomePage
 import Data.NHentai.Types
-import Data.NHentai.API.Gallery
+import Data.Time.Clock.POSIX
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
-import Control.Monad
+import Options.Applicative
 import Refined
+import Streaming as S
 import System.Directory
 import System.FilePath
 import Text.HTML.Scalpel hiding (Config)
 import Text.URI
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.Text as T
+import qualified Streaming.Concurrent as S
+import qualified Streaming.Prelude as S
+
+-- i honestly think that this is not a good idea
+instance (Functor f, MonadThrow m) => MonadThrow (Stream f m)
+instance (Functor f, MonadLogger m) => MonadLogger (Stream f m)
+instance (Functor f, MonadLoggerIO m) => MonadLoggerIO (Stream f m)
 
 getRecentGalleryId :: IO GalleryID
 getRecentGalleryId = do
@@ -33,7 +54,7 @@ getRecentGalleryId = do
 data Config
 	= Config
 		{ getGalleryJsonPath'Config :: GalleryID -> FilePath
-		, getGalleryPageThumbPath'Config :: GalleryID -> MediaID -> PageIdx -> ImageType -> FilePath
+		, getGalleryPageThumbPath'Config :: GalleryID -> MediaID -> PageIndex -> ImageType -> FilePath
 		}
 
 initConfig :: Config
@@ -42,43 +63,98 @@ initConfig = Config
 	, getGalleryPageThumbPath'Config = \gid _ pid img_type -> "galleries" </> show (unrefine gid) </> (show (unrefine pid) <> "." <> imageTypeExtension img_type)
 	}
 
-downloadGallery :: Manager -> Config -> GalleryID -> IO ()
-downloadGallery mgr conf gid = do
-	let json_path = getGalleryJsonPath'Config conf gid
-	
-	json_exist <- doesFileExist json_path
+data AesonParseException = AesonParseException String
+	deriving (Show, Eq)
+instance Exception AesonParseException
 
-	unless (json_exist) $ do
-		putStrLn "Downloading JSON."
-		createDirectoryIfMissing True (takeDirectory json_path)
-		json_url <- mkGalleryApiUrl gid
-		req <- parseRequest (renderStr json_url)
-		body <- responseBody <$> httpLbs req mgr
-		print body
-		BL.writeFile json_path body
+data RunOptions
+	= RunDownload
+		{ galleryIdListStr'RunDownload :: String
+		}
+	deriving (Show, Eq)
 
-	eitherDecodeFileStrict json_path >>= \case
-		Left err -> fail err
-		Right g -> do
-			putStrLn "Downloading Stuff."
-			let mid = mediaId'APIGallery g
-			forM_ (zip [1..] (pages'APIGallery g)) $ \(pid',p) -> do
-				pid <- refineThrow pid'
-				let image_type = type'ImageSpec p
-				let page_thumb_path = getGalleryPageThumbPath'Config conf gid mid pid image_type
-				page_thumb_exist <- doesFileExist page_thumb_path
-				unless (page_thumb_exist) $ do
-					createDirectoryIfMissing True (takeDirectory page_thumb_path)
-					page_thumb_url <- getPageThumbUrl g pid
-					putStrLn $ renderStr page_thumb_url
-					req2 <- parseRequest (renderStr page_thumb_url)
-					body2 <- responseBody <$> httpLbs req2 mgr
-					putStrLn page_thumb_path
-					BL.writeFile page_thumb_path body2
+runOptionsParser :: Parser RunOptions
+runOptionsParser = RunDownload
+	<$> strOption ( short 'g' <> long "gallery_ids" <> metavar "GALLERY_IDS" )
+
+data ReadException = ReadException { input'ReadException :: String, part'ReadException :: String }
+	deriving (Show, Eq)
+instance Exception ReadException
+
+readCommaList :: (Read a, MonadThrow m) => String -> m [a]
+readCommaList input = traverse reading . splitOn "," $ input
+	where
+	reading :: (MonadThrow m, Read a) => String -> m a
+	reading string = case readMay string of
+		Nothing -> throwM (ReadException input string)
+		Just x -> pure x
+
+programOptionsParser :: ParserInfo RunOptions
+programOptionsParser = info (runOptionsParser <**> helper) fullDesc
+
+download :: (MonadThrow m, MonadLoggerIO m) => Manager -> URI -> FilePath -> m ()
+download mgr uri dest_path = do
+	req <- parseRequest (renderStr uri)
+	$logInfo $ "Downloading: " <> arrow_str <> "..."
+	t <- liftIO getPOSIXTime
+	body <- responseBody <$> liftIO (httpLbs req mgr)
+	t' <- liftIO getPOSIXTime
+	let dt = t' - t
+	$logInfo $ "Downloaded: " <> arrow_str <> ", took " <> T.pack (show dt) <> ", byte length: " <> T.pack (show $ BL.length body)
+	liftIO $ createDirectoryIfMissing True (takeDirectory dest_path)
+	liftIO $ BL.writeFile dest_path body
+	where
+	arrow_str = render uri <> " -> " <> T.pack dest_path
+
+fetch :: (MonadThrow m, MonadLoggerIO m) => Manager -> URI -> FilePath -> m BL.ByteString
+fetch mgr uri dest_path = do
+	exist <- liftIO $ doesFileExist dest_path
+	if exist then do
+		$logInfo $ "Skipped downloading: " <> arrow_str <> ", file exists"
+	else do
+		download mgr uri dest_path
+	liftIO $ BL.readFile dest_path
+	where
+	arrow_str = render uri <> " -> " <> T.pack dest_path
+
+data Download = Download URI FilePath
+	deriving (Show, Eq)
+
+fetchGallery :: (MonadThrow m, MonadLoggerIO m) => Config -> Manager -> GalleryID -> Stream (Of Download) m ()
+fetchGallery conf mgr gid = do
+	gallery_api_url <- mkGalleryApiUrl gid
+	(eitherDecode @APIGallery <$> fetch mgr gallery_api_url gallery_json_path) >>= \case
+		Left error_string -> throwM (AesonParseException error_string)
+		Right json -> do
+			downloads <- extractDownloads json
+			S.each downloads
+	where
+	gallery_json_path = getGalleryJsonPath'Config conf gid
+	extractDownloads json = catMaybes <$> maybe_list
+		where
+		maybe_list = forM (zip [1..] (pages'APIGallery json)) $ \(pid', page_thumb) -> do
+			pid <- refineThrow pid'
+			let image_type = type'ImageSpec page_thumb
+			let page_thumb_path = getGalleryPageThumbPath'Config conf gid mid pid image_type
+			page_thumb_exist <- liftIO $ doesFileExist page_thumb_path
+			if page_thumb_exist then do
+				pure $ Nothing
+			else do
+				page_thumb_url <- mkPageThumbUrl mid pid image_type
+				pure $ Just $ Download page_thumb_url page_thumb_path
+		mid = mediaId'APIGallery json
+
+mainRun :: (MonadMask m, MonadBaseControl IO m, MonadLoggerIO m) => RunOptions -> m ()
+mainRun (RunDownload {..}) = do
+	mgr <- liftIO $ newManager tlsManagerSettings
+	gids :: [GalleryID] <- readCommaList galleryIdListStr'RunDownload >>= traverse refineThrow
+	S.withStreamMapM 4 (downloader mgr) (S.for (S.each gids) (fetchGallery conf mgr)) S.effects
+	-- S.mapM_ (downloader mgr) $ S.for (S.each gids) (fetchGallery conf mgr)
+	where
+	downloader mgr (Download url dest_path) = download mgr url dest_path
+	conf = initConfig
 
 main :: IO ()
 main = do
-	gid <- getRecentGalleryId
-	print gid
-	mgr <- newManager tlsManagerSettings
-	downloadGallery mgr initConfig gid
+	run_options <- execParser programOptionsParser
+	runStdoutLoggingT $ mainRun run_options

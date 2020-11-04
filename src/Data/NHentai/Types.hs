@@ -9,7 +9,7 @@ type CommentID = Refined Positive Int
 type GalleryID = Refined Positive Int
 type TagID = Refined Positive Int
 type MediaID = Refined Positive Int
-type PageIdx = Refined Positive Int
+type PageIndex = Refined Positive Int
 
 data TagType = TagTag | LanguageTag | CategoryTag | CharacterTag | GroupTag | ArtistTag | ParodyTag deriving (Show, Eq, Read)
 

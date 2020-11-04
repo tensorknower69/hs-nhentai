@@ -28,8 +28,8 @@ import qualified Data.Text as T
 
 data Pagination
 	= Pagination
-		{ current'Pagination :: PageIdx
-		, last'Pagination :: PageIdx
+		{ current'Pagination :: PageIndex
+		, last'Pagination :: PageIndex
 		}
 	deriving (Show, Eq)
 
@@ -89,7 +89,7 @@ homePageScraper = do
 	where
 	containerScraper index_classes = chroots ("div" @: ["class" @= intercalate " " (["container", "index-container"] <> index_classes)] // "div" @: [hasClass "gallery"]) galleryScraper
 
-mkHomePageUrl :: MonadThrow m => PageIdx -> m URI
+mkHomePageUrl :: MonadThrow m => PageIndex -> m URI
 mkHomePageUrl page = do
 	let prefix = [uri|https://nhentai.net|]
 	page_query_value <- mkQueryValue $ show (unrefine page) ^. packed
