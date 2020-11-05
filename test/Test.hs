@@ -5,6 +5,7 @@
 
 import Control.Monad
 import Data.Aeson
+import Data.Maybe
 import Data.NHentai.API.Comment
 import Data.NHentai.API.Gallery
 import Data.NHentai.Scraper.HomePage
@@ -32,9 +33,9 @@ tests = testGroup "NHentai"
 		]
 	, testGroup "Scraper"
 		[ testGroup "HomePage"
-			[ testHomePage 1
-			, testHomePage 10000
-			, testHomePage 10000000
+			[ testHomePage False 1
+			, testHomePage False 10000
+			, testHomePage True 10000000
 			]
 		]
 	]
@@ -50,19 +51,24 @@ testGalleryApi :: Int -> TestTree
 testGalleryApi gid = testCase ("api/gallery/" <> show gid) $ do
 	refineFail gid >>= mkGalleryApiUrl >>= httpJson @APIGallery . renderStr >>= \case
 		Right _ -> pure ()
-		Left err -> assertFailure $ "fail to parse json: " <> show err
+		Left err -> assertFailure $ "Fail to parse json: " <> show err
 
 testCommentApi :: Int -> TestTree
 testCommentApi gid = testCase ("api/gallery/" <> show gid <> "/comments") $ do
 	refineFail gid >>= mkCommentApiUrl >>= httpJson @[APIComment] . renderStr >>= \case
 		Right _ -> pure ()
-		Left err -> assertFailure $ "fail to parse json: " <> show err
+		Left err -> assertFailure $ "Fail to parse json: " <> show err
 
-testHomePage :: Int -> TestTree
-testHomePage page = testCase ("/?page=" <> show page) $ do
-	url <- renderStr <$> (refineFail page >>= mkHomePageUrl)
+testHomePage :: Bool -> Int -> TestTree
+testHomePage should_fail page = testCase ("/?page=" <> show page) $ do
+	url <- renderStr <$> (refineThrow page >>= mkHomePageUrl)
 	result <- scrapeURL @String url homePageScraper
-	when (result == Nothing) $ assertFailure $ "fail to scrap home page: " <> show url
+	if should_fail then
+		when (isJust result) $ do
+			assertFailure $ "Expecting scrap home page failure, but succeeded: " <> show url
+	else
+		when (result == Nothing) $ do
+			assertFailure $ "Fail to scrap home page: " <> show url
 
 main :: IO ()
 main = defaultMain tests

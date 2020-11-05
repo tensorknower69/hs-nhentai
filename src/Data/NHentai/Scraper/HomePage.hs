@@ -17,10 +17,11 @@ import Control.Applicative
 import Control.Lens
 import Control.Monad.Catch
 import Data.List
+import Data.List.NonEmpty
 import Data.NHentai.Scraper.Types
 import Data.NHentai.Types
 import Data.Text.Lens
-import Refined
+import Refined hiding (NonEmpty)
 import Text.HTML.Scalpel.Core as Scalpel
 import Text.StringLike hiding (empty)
 import Text.URI (URI, QueryParam(..), mkQueryValue)
@@ -31,25 +32,26 @@ data HomePage
 	= HomePage
 		{ pagination'HomePage :: Pagination
 		, popularGalleries'HomePage :: [ScraperGallery]
-		, recentGalleries'HomePage :: [ScraperGallery]
+		, recentGalleries'HomePage :: NonEmpty ScraperGallery
 		}
 	deriving (Show, Eq)
 
-homePageScraper :: (Show str, StringLike str) => Scraper str (Maybe HomePage)
+homePageScraper :: (Show str, StringLike str) => Scraper str HomePage
 homePageScraper = do
 	-- recent must be scrapped first
-	recent <- containerScraper []
-	if null recent then
-		pure Nothing
-	else do
-		pagination <- chroot ("section" @: [hasClass "pagination"]) paginationScraper
-		popular <- containerScraper ["index-popular"] <|> pure []
-		pure . Just $ HomePage pagination popular recent
+	recent' <- containerScraper []
+	case nonEmpty recent' of
+		Nothing -> fail "no recent galleries"
+		Just recent -> do
+			pagination <- chroot ("section" @: [hasClass "pagination"]) paginationScraper
+			popular <- containerScraper ["index-popular"] <|> pure []
+			pure $ HomePage pagination popular recent
 	where
 	containerScraper index_classes = chroots ("div" @: ["class" @= intercalate " " (["container", "index-container"] <> index_classes)] // "div" @: [hasClass "gallery"]) galleryScraper
 
 mkHomePageUrl :: MonadThrow m => PageIndex -> m URI
 mkHomePageUrl page = do
-	let prefix = [uri|https://nhentai.net|]
 	page_query_value <- mkQueryValue $ show (unrefine page) ^. packed
 	pure $ prefix & uriQuery .~ [ QueryParam [queryKey|page|] page_query_value ]
+	where
+	prefix = [uri|https://nhentai.net|]

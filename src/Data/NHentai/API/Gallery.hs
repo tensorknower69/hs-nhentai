@@ -30,9 +30,10 @@ import qualified Data.Text as T
 
 mkGalleryApiUrl :: MonadThrow m => GalleryID -> m URI
 mkGalleryApiUrl gid = do
-	let prefix = [uri|https://nhentai.net/api/gallery|]
 	gid_path_piece <- mkPathPiece (show (unrefine gid) ^. packed)
 	pure $ prefix & uriPath %~ (<> [gid_path_piece])
+	where
+	prefix = [uri|https://nhentai.net/api/gallery|]
 
 toTagType :: String -> Maybe TagType
 toTagType str = readMay (capitalize str <> "Tag")
@@ -102,10 +103,11 @@ data APIGallery
 
 mkPageThumbUrl :: MonadThrow m => MediaID -> PageIndex -> ImageType -> m URI
 mkPageThumbUrl mid pid image_type = do
-	let prefix = [uri|https://t.nhentai.net/galleries|]
 	mid_path_piece <- mkPathPiece (show (unrefine mid) ^. packed)
 	image_path_piece <- mkPathPiece (show (unrefine pid) ^. packed <> "t." <> imageTypeExtension image_type ^. packed)
 	pure $ prefix & uriPath %~ (<> [mid_path_piece, image_path_piece])
+	where
+	prefix = [uri|https://t.nhentai.net/galleries|]
 
 intOrString :: (Read a, Integral a) => Value -> Parser a
 intOrString (Number i) = case floatingOrInteger @Float i of

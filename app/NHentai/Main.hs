@@ -8,25 +8,20 @@
 
 module Main where
 
-import Control.Error
-import Control.Lens
-import Control.Monad
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Logger
-import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Data.Aeson hiding (json)
-import Data.List.Split
 import Data.NHentai.API.Gallery
 import Data.NHentai.Scraper.HomePage
 import Data.NHentai.Scraper.Types
 import Data.NHentai.Types
 import Data.Time.Clock.POSIX
+import NHentai.Utils
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import Options.Applicative
-import Options.Applicative.Types
 import Refined
 import Streaming as S
 import System.Directory
@@ -34,25 +29,18 @@ import System.FilePath
 import Text.HTML.Scalpel hiding (Config)
 import Text.URI
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.List.NonEmpty as L
 import qualified Data.Text as T
 import qualified Streaming.Concurrent as S
 import qualified Streaming.Prelude as S
 
--- i honestly think that this is not a good idea
-instance (Functor f, MonadThrow m) => MonadThrow (Stream f m)
-instance (Functor f, MonadLogger m) => MonadLogger (Stream f m)
-instance (Functor f, MonadLoggerIO m) => MonadLoggerIO (Stream f m)
-
-getRecentGalleryId :: IO GalleryID
-getRecentGalleryId = do
+getLatestGalleryId :: (MonadThrow m, MonadIO m) => m GalleryID
+getLatestGalleryId = do
 	url <- mkHomePageUrl $$(refineTH 1)
-	scrapeURL @String (renderStr url) homePageScraper >>= \case
-		Nothing -> fail $ "unable to scrap " <> show url
-		Just may_page -> case may_page of
-			Nothing -> fail "invalid page"
-			Just page -> case recentGalleries'HomePage page of
-				[] -> fail "no recent galleries found"
-				(x:_) -> pure $ galleryId'ScraperGallery x
+	home_page' <- liftIO $ scrapeURL @String (renderStr url) homePageScraper
+	case home_page' of
+		Nothing -> throwM ScalpelException
+		Just home_page -> pure . galleryId'ScraperGallery . L.head $ recentGalleries'HomePage home_page
 
 data Config
 	= Config
@@ -66,37 +54,49 @@ initConfig = Config
 	, getGalleryPageThumbPath'Config = \gid _ pid img_type -> "galleries" </> show (unrefine gid) </> (show (unrefine pid) <> "." <> imageTypeExtension img_type)
 	}
 
-data AesonParseException = AesonParseException String
+data GalleryIDListing
+	= GIDListingList
+		{ galleryIdList'GIDListingList :: [GalleryID]
+		}
+	| GIDListingAll
 	deriving (Show, Eq)
-instance Exception AesonParseException
 
-data RunOptions
-	= RunDownload
-		{ galleryIdList'RunDownload :: [GalleryID]
-		, numThreads'RunDownload :: Refined Positive Int
+gidListingOption :: Parser GalleryIDListing
+gidListingOption = list_option <|> all_option
+	where
+	list_option = GIDListingList
+		<$> option (listReadM refineReadM)
+			( short 'g'
+			<> long "gallery-ids"
+			<> metavar "GALLERY_IDS"
+			)
+	all_option = flag' GIDListingAll
+		( short 'a'
+		<> long "all"
+		<> help "download galleries from the latest one to the beginning"
+		)
+
+data MainOption
+	= MainOptionDownload
+		{ galleryIdListing'MainOptionDownload :: GalleryIDListing
+		, numThreads'MainOptionDownload :: Refined Positive Int
 		}
 	deriving (Show, Eq)
 
-refineReadM :: (Read x, Predicate p x) => ReadM (Refined p x)
-refineReadM = eitherReader $ \string -> do
-	case readMay string of
-		Nothing -> Left $ "unable to parse string: " <> string
-		Just x -> refine x & _Left %~ show
+mainOptionParser :: Parser MainOption
+mainOptionParser = MainOptionDownload
+	<$> gidListingOption
+	<*> num_threads_option
+	where
+	num_threads_option = option refineReadM
+		( short 't'
+		<> long "num-threads"
+		<> metavar "NUM_THREADS"
+		<> value $$(refineTH @Positive @Int 1)
+		)
 
-listReadM :: ReadM x -> ReadM [x]
-listReadM (ReadM reader') = ReadM . ReaderT $ traverse (runReaderT reader') . splitOn ","
-
-runOptionsParser :: Parser RunOptions
-runOptionsParser = RunDownload
-	<$> option (listReadM refineReadM) (short 'g' <> long "gallery-ids" <> metavar "GALLERY_IDS")
-	<*> option refineReadM (short 't' <> long "num-threads" <> metavar "NUM_THREADS" <> value $$(refineTH @Positive @Int 1))
-
-data ReadException = ReadException { input'ReadException :: String, part'ReadException :: String }
-	deriving (Show, Eq)
-instance Exception ReadException
-
-programOptionsParser :: ParserInfo RunOptions
-programOptionsParser = info (runOptionsParser <**> helper) $
+programOptionsParser :: ParserInfo MainOption
+programOptionsParser = info (mainOptionParser <**> helper) $
 	fullDesc
 	<> header "nhentai-cli - a command line interface for nhentai.net written in Haskell"
 
@@ -141,32 +141,39 @@ fetchGallery conf mgr gid = do
 			S.each downloads
 	where
 	gallery_json_path = getGalleryJsonPath'Config conf gid
-	extractDownloads json = catMaybes <$> maybe_list
+	extractDownloads (APIGallery {..}) = my_list 1 pages'APIGallery
 		where
-		maybe_list = forM (zip [1..] (pages'APIGallery json)) $ \(pid', page_thumb) -> do
-			pid <- refineThrow pid'
-			let image_type = type'ImageSpec page_thumb
-			let page_thumb_path = getGalleryPageThumbPath'Config conf gid mid pid image_type
+		my_list page_index' (page_image_spec : rest) = do
+			page_index <- refineThrow page_index'
+			let page_thumb_path = getGalleryPageThumbPath'Config conf id'APIGallery mediaId'APIGallery page_index image_type
 			page_thumb_exist <- liftIO $ doesFileExist page_thumb_path
-			if page_thumb_exist then do
-				pure $ Nothing
+			if page_thumb_exist then next
 			else do
-				page_thumb_url <- mkPageThumbUrl mid pid image_type
-				pure $ Just $ Download page_thumb_url page_thumb_path
-		mid = mediaId'APIGallery json
+				page_thumb_url <- mkPageThumbUrl mediaId'APIGallery page_index image_type
+				fmap (Download page_thumb_url page_thumb_path :) next
+			where
+			image_type = type'ImageSpec page_image_spec
+			next = my_list (page_index' + 1) rest
+		my_list _ _ = pure []
 
-mainRun :: (MonadMask m, MonadBaseControl IO m, MonadLoggerIO m) => RunOptions -> m ()
-mainRun (RunDownload {..}) = do
-	mgr <- liftIO $ newManager tlsManagerSettings
-	S.withStreamMapM
-		(unrefine numThreads'RunDownload)
-		(runDownload mgr)
-		(S.for (S.each galleryIdList'RunDownload) (fetchGallery conf mgr))
-		S.effects
+runMainOption :: (MonadMask m, MonadBaseControl IO m, MonadLoggerIO m) => MainOption -> m ()
+runMainOption (MainOptionDownload {..}) = run_download galleryIdListing'MainOptionDownload
 	where
+	run_download (GIDListingList {..}) = do
+		mgr <- liftIO $ newManager tlsManagerSettings
+		S.withStreamMapM
+			(unrefine numThreads'MainOptionDownload)
+			(runDownload mgr)
+			(S.for (S.each galleryIdList'GIDListingList) (fetchGallery conf mgr))
+			S.effects
+	run_download GIDListingAll = do
+		latest_gid <- unrefine <$> getLatestGalleryId
+		$logInfo $ "Latest gallery: " <> T.pack (show $ latest_gid)
+		gids <- traverse refineThrow $ enumFromThenTo (latest_gid) (latest_gid - 1) 1
+		run_download (GIDListingList gids)
 	conf = initConfig
 
 main :: IO ()
 main = do
 	run_options <- execParser programOptionsParser
-	runStdoutLoggingT $ mainRun run_options
+	runStdoutLoggingT $ runMainOption run_options
