@@ -21,6 +21,7 @@ import Data.NHentai.Internal.Utils
 import Data.NHentai.Types
 import Data.Scientific
 import Data.Text.Lens
+import Data.Time.Clock
 import Refined
 import Text.URI (URI)
 import Text.URI hiding (URI(..))
@@ -94,7 +95,7 @@ data APIGallery
 		, cover'APIGallery :: ImageSpec
 		, thumbnail'APIGallery :: ImageSpec
 		, scanlator'APIGallery :: T.Text
-		, uploadDate'APIGallery :: Integer
+		, uploadDate'APIGallery :: UTCTime
 		, tags'APIGallery :: [APITag]
 		, numPages'APIGallery :: PageIndex
 		, numFavorites'APIGallery :: Refined NonNegative Int
@@ -128,7 +129,7 @@ instance FromJSON APIGallery where
 			<*> (unAPIImageSpec <$> (v .: "images" >>= (.: "cover")))
 			<*> (unAPIImageSpec <$> (v .: "images" >>= (.: "thumbnail")))
 			<*> v .: "scanlator"
-			<*> v .: "upload_date"
+			<*> (secondsToUTCTime <$> (v .: "upload_date"))
 			<*> v .: "tags"
 			<*> v .: "num_pages"
 			<*> v .: "num_favorites"

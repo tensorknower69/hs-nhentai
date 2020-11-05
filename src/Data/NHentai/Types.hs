@@ -2,7 +2,6 @@ module Data.NHentai.Types where
 
 import Data.Char
 import Refined
-import qualified Data.Text as T
 
 type PosterID = Refined Positive Int
 type CommentID = Refined Positive Int

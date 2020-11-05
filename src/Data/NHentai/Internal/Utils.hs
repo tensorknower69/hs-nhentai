@@ -4,8 +4,10 @@ module Data.NHentai.Internal.Utils where
 
 import Control.Exception.Base
 import Data.Char
-import qualified Data.Text as T
+import Data.Time.Clock
+import Data.Time.Clock.POSIX
 import Text.URI
+import qualified Data.Text as T
 
 capitalize :: [Char] -> [Char]
 capitalize [] = []
@@ -18,3 +20,6 @@ leftFail = \case
 
 mkURIFail :: MonadFail m => T.Text -> m URI
 mkURIFail = leftFail . mkURI
+
+secondsToUTCTime :: Integer -> UTCTime
+secondsToUTCTime = posixSecondsToUTCTime . secondsToNominalDiffTime . fromIntegral

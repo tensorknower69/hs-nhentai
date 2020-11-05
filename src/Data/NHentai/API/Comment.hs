@@ -15,6 +15,7 @@ import Data.Aeson
 import Data.NHentai.API.Gallery (mkGalleryApiUrl)
 import Data.NHentai.Internal.Utils
 import Data.NHentai.Types
+import Data.Time.Clock
 import Refined
 import Text.URI (URI)
 import Text.URI.Lens
@@ -51,7 +52,7 @@ data APIComment
 		{ id'APIComment :: CommentID
 		, galleryId'APIComment :: GalleryID
 		, poster'APIComment :: APIPoster
-		, postDate'APIComment :: Integer
+		, postDate'APIComment :: UTCTime
 		, body'APIComment :: T.Text
 		}
 	deriving (Show, Eq)
@@ -61,5 +62,5 @@ instance FromJSON APIComment where
 		<$> (v .: "id" >>= refineFail)
 		<*> (v .: "gallery_id" >>= refineFail)
 		<*> v .: "poster"
-		<*> v .: "post_date"
+		<*> (secondsToUTCTime <$> (v .: "post_date"))
 		<*> v .: "body"

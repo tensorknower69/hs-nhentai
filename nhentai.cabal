@@ -21,6 +21,7 @@ library
     , aeson
     , text
     , split
+    , time
     , transformers
     , modern-uri
     , lens
