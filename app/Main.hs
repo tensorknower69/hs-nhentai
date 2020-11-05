@@ -8,12 +8,13 @@
 
 module Main where
 
-import Control.Concurrent
 import Control.Error
+import Control.Lens
 import Control.Monad
 import Control.Monad.Catch
-import Control.Monad.IO.Class
+import Control.Monad.Except
 import Control.Monad.Logger
+import Control.Monad.Reader
 import Control.Monad.Trans.Control
 import Data.Aeson hiding (json)
 import Data.List.Split
@@ -25,6 +26,7 @@ import Data.Time.Clock.POSIX
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import Options.Applicative
+import Options.Applicative.Types
 import Refined
 import Streaming as S
 import System.Directory
@@ -70,28 +72,33 @@ instance Exception AesonParseException
 
 data RunOptions
 	= RunDownload
-		{ galleryIdListStr'RunDownload :: String
+		{ galleryIdList'RunDownload :: [GalleryID]
+		, numThreads'RunDownload :: Refined Positive Int
 		}
 	deriving (Show, Eq)
 
+refineReadM :: (Read x, Predicate p x) => ReadM (Refined p x)
+refineReadM = eitherReader $ \string -> do
+	case readMay string of
+		Nothing -> Left $ "unable to parse string: " <> string
+		Just x -> refine x & _Left %~ show
+
+listReadM :: ReadM x -> ReadM [x]
+listReadM (ReadM reader') = ReadM . ReaderT $ traverse (runReaderT reader') . splitOn ","
+
 runOptionsParser :: Parser RunOptions
 runOptionsParser = RunDownload
-	<$> strOption ( short 'g' <> long "gallery_ids" <> metavar "GALLERY_IDS" )
+	<$> option (listReadM refineReadM) (short 'g' <> long "gallery-ids" <> metavar "GALLERY_IDS")
+	<*> option refineReadM (short 't' <> long "num-threads" <> metavar "NUM_THREADS" <> value $$(refineTH @Positive @Int 1))
 
 data ReadException = ReadException { input'ReadException :: String, part'ReadException :: String }
 	deriving (Show, Eq)
 instance Exception ReadException
 
-readCommaList :: (Read a, MonadThrow m) => String -> m [a]
-readCommaList input = traverse reading . splitOn "," $ input
-	where
-	reading :: (MonadThrow m, Read a) => String -> m a
-	reading string = case readMay string of
-		Nothing -> throwM (ReadException input string)
-		Just x -> pure x
-
 programOptionsParser :: ParserInfo RunOptions
-programOptionsParser = info (runOptionsParser <**> helper) fullDesc
+programOptionsParser = info (runOptionsParser <**> helper) $
+	fullDesc
+	<> header "nhentai-cli - a command line interface for nhentai.net written in Haskell"
 
 download :: (MonadThrow m, MonadLoggerIO m) => Manager -> URI -> FilePath -> m ()
 download mgr uri dest_path = do
@@ -121,6 +128,9 @@ fetch mgr uri dest_path = do
 data Download = Download URI FilePath
 	deriving (Show, Eq)
 
+runDownload :: (MonadThrow m, MonadLoggerIO m) => Manager -> Download -> m ()
+runDownload mgr (Download url dest_path) = download mgr url dest_path
+
 fetchGallery :: (MonadThrow m, MonadLoggerIO m) => Config -> Manager -> GalleryID -> Stream (Of Download) m ()
 fetchGallery conf mgr gid = do
 	gallery_api_url <- mkGalleryApiUrl gid
@@ -148,11 +158,12 @@ fetchGallery conf mgr gid = do
 mainRun :: (MonadMask m, MonadBaseControl IO m, MonadLoggerIO m) => RunOptions -> m ()
 mainRun (RunDownload {..}) = do
 	mgr <- liftIO $ newManager tlsManagerSettings
-	gids :: [GalleryID] <- readCommaList galleryIdListStr'RunDownload >>= traverse refineThrow
-	S.withStreamMapM 4 (downloader mgr) (S.for (S.each gids) (fetchGallery conf mgr)) S.effects
-	-- S.mapM_ (downloader mgr) $ S.for (S.each gids) (fetchGallery conf mgr)
+	S.withStreamMapM
+		(unrefine numThreads'RunDownload)
+		(runDownload mgr)
+		(S.for (S.each galleryIdList'RunDownload) (fetchGallery conf mgr))
+		S.effects
 	where
-	downloader mgr (Download url dest_path) = download mgr url dest_path
 	conf = initConfig
 
 main :: IO ()
