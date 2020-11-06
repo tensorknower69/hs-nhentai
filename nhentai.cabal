@@ -15,7 +15,7 @@ library
     Data.NHentai.Scraper.HomePage
     Data.NHentai.Scraper.Types
   build-depends:
-    base >= 4
+    base >=4.13 && <5
     , mtl
     , scalpel-core
     , aeson
@@ -40,7 +40,7 @@ executable nhentai-cli
   other-modules:
     NHentai.Utils
   build-depends:
-    base >= 4
+    base >=4.13 && <5
     , hs-nhentai
     , monad-logger
     , text
@@ -73,7 +73,7 @@ test-suite hs-nhentai-test
   main-is: Test.hs
   hs-source-dirs: test
   build-depends:
-    base >= 4
+    base >=4.13 && <5
     , hs-nhentai
     , scalpel
     , aeson
