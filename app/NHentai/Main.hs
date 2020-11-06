@@ -34,11 +34,12 @@ import qualified Data.Text as T
 import qualified Streaming.Concurrent as S
 import qualified Streaming.Prelude as S
 
-getLatestGalleryId :: (MonadThrow m, MonadIO m) => m GalleryID
-getLatestGalleryId = do
+getLatestGalleryId :: (MonadThrow m, MonadIO m) => Manager -> m GalleryID
+getLatestGalleryId mgr = do
 	url <- mkHomePageUrl $$(refineTH 1)
-	home_page' <- liftIO $ scrapeURL @String (renderStr url) homePageScraper
-	case home_page' of
+	req <- parseRequest $ renderStr url
+	body <- responseBody <$> liftIO (httpLbs req mgr)
+	case scrapeStringLike body homePageScraper of
 		Nothing -> throwM ScalpelException
 		Just home_page -> pure . galleryId'ScraperGallery . L.head $ recentGalleries'HomePage home_page
 
@@ -204,17 +205,23 @@ runMainOptions :: (MonadMask m, MonadBaseControl IO m, MonadLoggerIO m) => MainO
 runMainOptions (MainOptionsDownload {..}) = run_download galleryIdListing'MainOptionsDownload
 	where
 	run_download (GIDListingList {..}) = do
-		mgr <- liftIO $ newManager tlsManagerSettings
+		mgr <- newTlsManager
+		download_gids (galleryIdList'GIDListingList) mgr
+	run_download GIDListingAll = do
+		mgr <- newTlsManager
+		latest_gid <- unrefine <$> getLatestGalleryId mgr
+		$logInfo $ "Latest gallery: " <> T.pack (show $ latest_gid)
+		gids <- traverse refineThrow $ enumFromThenTo (latest_gid) (latest_gid - 1) 1
+		download_gids gids mgr
+	download_gids gids mgr = do
 		S.withStreamMapM
 			(unrefine numThreads'MainOptionsDownload)
 			(runDownload mgr)
-			(S.for (S.each galleryIdList'GIDListingList) (fetchGallery outputConfig'MainOptionsDownload mgr))
+			(S.for
+				(S.each gids)
+				(fetchGallery outputConfig'MainOptionsDownload mgr)
+			)
 			S.effects
-	run_download GIDListingAll = do
-		latest_gid <- unrefine <$> getLatestGalleryId
-		$logInfo $ "Latest gallery: " <> T.pack (show $ latest_gid)
-		gids <- traverse refineThrow $ enumFromThenTo (latest_gid) (latest_gid - 1) 1
-		run_download (GIDListingList gids)
 
 main :: IO ()
 main = do
