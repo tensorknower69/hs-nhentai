@@ -179,8 +179,12 @@ runDownload mgr (Download url dest_path) = download mgr url dest_path
 fetchGallery :: (MonadThrow m, MonadLoggerIO m) => OutputConfig -> Manager -> GalleryID -> Stream (Of Download) m ()
 fetchGallery conf mgr gid = do
 	gallery_api_url <- mkGalleryApiUrl gid
-	(eitherDecode @APIGallery <$> fetch mgr gallery_api_url gallery_json_path) >>= \case
-		Left error_string -> throwM (AesonParseException error_string)
+	body <- fetch mgr gallery_api_url gallery_json_path
+	case eitherDecode @APIGallery body of
+		Left error_string -> do
+			$logDebug $ "Unable to decode JSON from gallery: " <> T.pack (show $ unrefine gid) <> ", error: " <> T.pack error_string <> ", redownloading..."
+			liftIO $ removeFile gallery_json_path
+			throwM (AesonParseException error_string)
 		Right json -> do
 			downloads <- extractDownloads json
 			S.each downloads
