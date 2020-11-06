@@ -7,11 +7,13 @@ module Data.NHentai.API.Gallery
 ( mkGalleryApiUrl
 , mkPageThumbUrl
 
+, APIGalleryResult(..)
 , APIGallery(..)
 , APITag(..)
 )
 where
 
+import Control.Applicative
 import Control.Error
 import Control.Lens
 import Control.Monad.Catch
@@ -117,9 +119,18 @@ intOrString (Number i) = case floatingOrInteger @Float i of
 intOrString (String x) = readZ (x ^. unpacked)
 intOrString _ = fail "neither a String or a Number Int"
 
-instance FromJSON APIGallery where
-	parseJSON = withObject "APIGallery" $ \v -> do
-		APIGallery
+data APIGalleryResult
+	= APIGalleryResultSuccess APIGallery
+	| APIGalleryResultError T.Text
+	deriving (Show, Eq)
+
+instance FromJSON APIGalleryResult where
+	parseJSON = withObject "APIGalleryResult" $ \v -> error_parser v <|> api_gallery_parser v
+		where
+		error_parser v = APIGalleryResultError
+			<$> (v .: "error")
+		api_gallery_parser v = APIGalleryResultSuccess <$>
+			( APIGallery
 			<$> (v .: "id" >>= intOrString >>= refineFail)
 			<*> (v .: "media_id" >>= intOrString >>= refineFail)
 			<*> (v .: "title" >>= (.: "english"))
@@ -133,3 +144,4 @@ instance FromJSON APIGallery where
 			<*> v .: "tags"
 			<*> v .: "num_pages"
 			<*> v .: "num_favorites"
+			)

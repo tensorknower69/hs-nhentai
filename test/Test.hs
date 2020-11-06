@@ -49,8 +49,9 @@ httpJson url = do
 
 testGalleryApi :: Int -> TestTree
 testGalleryApi gid = testCase ("api/gallery/" <> show gid) $ do
-	refineFail gid >>= mkGalleryApiUrl >>= httpJson @APIGallery . renderStr >>= \case
-		Right _ -> pure ()
+	refineFail gid >>= mkGalleryApiUrl >>= httpJson @APIGalleryResult . renderStr >>= \case
+		Right (APIGalleryResultError _) -> assertFailure $ "Gallery is dead"
+		Right (APIGalleryResultSuccess _) -> pure ()
 		Left err -> assertFailure $ "Fail to parse json: " <> show err
 
 testCommentApi :: Int -> TestTree

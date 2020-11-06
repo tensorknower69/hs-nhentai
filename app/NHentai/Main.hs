@@ -11,6 +11,7 @@ module Main where
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Logger
+import Control.Monad.State
 import Control.Monad.Trans.Control
 import Data.Aeson hiding (json)
 import Data.NHentai.API.Gallery
@@ -148,27 +149,37 @@ programOptionsParser = ProgramOptions <$> log_level_parser <*> mainOptionsParser
 download :: (MonadThrow m, MonadLoggerIO m) => Manager -> URI -> FilePath -> m ()
 download mgr uri dest_path = do
 	req <- parseRequest (renderStr uri)
-	$logDebug $ "Downloading: " <> arrow_str <> "..."
+	$logDebug $ "Downloading: " <> arrow_text <> "..."
 	t <- liftIO getPOSIXTime
 	body <- responseBody <$> liftIO (httpLbs req mgr)
 	t' <- liftIO getPOSIXTime
+
 	let dt = t' - t
-	$logDebug $ "Downloaded: " <> arrow_str <> ", took " <> T.pack (show dt) <> ", byte length: " <> T.pack (show $ BL.length body)
+	let body_length = BL.length body
+	$logDebug $ "Downloaded: " <> arrow_text <> ", took " <> T.pack (show dt) <> ", byte length: " <> T.pack (show body_length)
+
+	when (body_length <= least_size) $ do
+		$logWarn $ "Downloaded content's size is too small: " <> T.pack (show body_length) <> " (<= " <> T.pack (show least_size) <> " bytes): " <> arrow_text <> ", the content may be invalid or not"
+	when (dt > most_dt) $ do
+		$logWarn $ "Downloading time took too long: " <> T.pack (show dt) <> " (>= )" <> T.pack (show most_dt) <> " seconds): " <> arrow_text
+
 	liftIO $ createDirectoryIfMissing True (takeDirectory dest_path)
 	liftIO $ BL.writeFile dest_path body
 	where
-	arrow_str = render uri <> " -> " <> T.pack dest_path
+	arrow_text = render uri <> " -> " <> T.pack dest_path
+	least_size = 2000
+	most_dt = 5.0
 
 fetch :: (MonadThrow m, MonadLoggerIO m) => Manager -> URI -> FilePath -> m BL.ByteString
 fetch mgr uri dest_path = do
 	exist <- liftIO $ doesFileExist dest_path
 	if exist then do
-		$logDebug $ "Skipped downloading: " <> arrow_str <> ", file exists"
+		$logDebug $ "Skipped downloading: " <> arrow_text <> ", file exists"
 	else do
 		download mgr uri dest_path
 	liftIO $ BL.readFile dest_path
 	where
-	arrow_str = render uri <> " -> " <> T.pack dest_path
+	arrow_text = render uri <> " -> " <> T.pack dest_path
 
 data Download = Download URI FilePath
 	deriving (Show, Eq)
@@ -176,17 +187,30 @@ data Download = Download URI FilePath
 runDownload :: (MonadThrow m, MonadLoggerIO m) => Manager -> Download -> m ()
 runDownload mgr (Download url dest_path) = download mgr url dest_path
 
-fetchGallery :: (MonadThrow m, MonadLoggerIO m) => OutputConfig -> Manager -> GalleryID -> Stream (Of Download) m ()
+data DownloaderState
+	= DownloaderState
+		{ -- TODO
+		}
+	deriving (Show, Eq)
+
+initDownloaderState :: DownloaderState
+initDownloaderState = DownloaderState
+
+fetchGallery :: (MonadThrow m, MonadLoggerIO m, MonadState DownloaderState m) => OutputConfig -> Manager -> GalleryID -> Stream (Of Download) m ()
 fetchGallery conf mgr gid = do
 	gallery_api_url <- mkGalleryApiUrl gid
 	body <- fetch mgr gallery_api_url gallery_json_path
-	case eitherDecode @APIGallery body of
+	case eitherDecode @APIGalleryResult body of
 		Left error_string -> do
-			$logDebug $ "Unable to decode JSON from gallery: " <> T.pack (show $ unrefine gid) <> ", error: " <> T.pack error_string <> ", redownloading..."
+			$logError $ "Unable to decode JSON from gallery: " <> T.pack (show $ unrefine gid) <> "\n- Error: " <> T.pack error_string <> "\n- Body: " <> T.pack (show body)
+			$logInfo $ "Redownloading " <> T.pack (show $ unrefine gid) <> "..."
 			liftIO $ removeFile gallery_json_path
-			throwM (AesonParseException error_string)
-		Right json -> do
-			downloads <- extractDownloads json
+			fetchGallery conf mgr gid
+		Right (APIGalleryResultError _) -> do
+			$logWarn $ "Gallery is dead: " <> T.pack (show $ unrefine gid) <> ", skipping"
+			pure ()
+		Right (APIGalleryResultSuccess api_gallery) -> do
+			downloads <- extractDownloads api_gallery
 			S.each downloads
 	where
 	gallery_json_path = getGalleryJsonPath'OutputConfig conf gid
@@ -217,7 +241,7 @@ runMainOptions (MainOptionsDownload {..}) = run_download galleryIdListing'MainOp
 		$logInfo $ "Latest gallery: " <> T.pack (show $ latest_gid)
 		gids <- traverse refineThrow $ enumFromThenTo (latest_gid) (latest_gid - 1) 1
 		download_gids gids mgr
-	download_gids gids mgr = do
+	download_gids gids mgr = (flip evalStateT) initDownloaderState $
 		S.withStreamMapM
 			(unrefine numThreads'MainOptionsDownload)
 			(runDownload mgr)
