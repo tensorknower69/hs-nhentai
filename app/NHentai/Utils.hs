@@ -6,6 +6,7 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Logger
 import Control.Monad.Reader
+import Data.List
 import Data.List.Split
 import Options.Applicative
 import Options.Applicative.Types
@@ -32,9 +33,21 @@ instance Exception ReadException
 refineReadM :: (Read x, Predicate p x) => ReadM (Refined p x)
 refineReadM = eitherReader $ \string -> do
 	case readMay string of
-		Nothing -> Left $ "unable to parse string: " <> string
+		Nothing -> Left $ "unable to parse string: " <> show string
 		Just x -> refine x & _Left %~ show
 
 listReadM :: ReadM x -> ReadM [x]
 listReadM (ReadM reader') = ReadM . ReaderT $ traverse (runReaderT reader') . splitOn ","
 
+logLevelReadM :: ReadM LogLevel
+logLevelReadM = eitherReader $ \string -> do
+	case lookup string my_map of
+		Nothing -> Left $ "must be one of: " <> (intercalate ", " $ fmap fst my_map) <> ", but received: " <> show string
+		Just x -> pure x
+	where
+	my_map =
+		[ ("debug", LevelDebug)
+		, ("info", LevelInfo)
+		, ("warn", LevelWarn)
+		, ("error", LevelError)
+		]
