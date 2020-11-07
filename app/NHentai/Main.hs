@@ -163,7 +163,7 @@ download mgr uri dest_path = do
 	when (body_length <= least_size) $ do
 		$logWarn $ "Downloaded content's size is too small: " <> T.pack (show body_length) <> " (<= " <> T.pack (show least_size) <> " bytes): " <> arrow_text <> ", the content may be invalid or not"
 	when (dt > most_dt) $ do
-		$logWarn $ "Downloading time took too long: " <> T.pack (show dt) <> " (>= )" <> T.pack (show most_dt) <> " seconds): " <> arrow_text
+		$logWarn $ "Downloading time took too long: " <> T.pack (show dt) <> " (>= " <> T.pack (show most_dt) <> " seconds): " <> arrow_text
 
 	liftIO $ createDirectoryIfMissing True (takeDirectory dest_path)
 	liftIO $ BL.writeFile dest_path body
