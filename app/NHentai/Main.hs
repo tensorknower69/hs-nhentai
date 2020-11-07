@@ -35,11 +35,18 @@ import qualified Data.Text as T
 import qualified Streaming.Concurrent as S
 import qualified Streaming.Prelude as S
 
+requestURI :: (MonadThrow m, MonadIO m) => Manager -> URI -> m BL.ByteString
+requestURI mgr uri = do
+	req <- parseRequest (renderStr uri)
+	let req' = req
+		{ responseTimeout = responseTimeoutNone
+		}
+	responseBody <$> liftIO (httpLbs req' mgr)
+
 getLatestGalleryId :: (MonadThrow m, MonadIO m) => Manager -> m GalleryID
 getLatestGalleryId mgr = do
 	url <- mkHomePageUrl $$(refineTH 1)
-	req <- parseRequest $ renderStr url
-	body <- responseBody <$> liftIO (httpLbs req mgr)
+	body <- requestURI mgr url
 	case scrapeStringLike body homePageScraper of
 		Nothing -> throwM ScalpelException
 		Just home_page -> pure . galleryId'ScraperGallery . L.head $ recentGalleries'HomePage home_page
@@ -150,10 +157,9 @@ programOptionsParser = ProgramOptions <$> log_level_parser <*> mainOptionsParser
 
 download :: (MonadThrow m, MonadLoggerIO m) => Manager -> URI -> FilePath -> m ()
 download mgr uri dest_path = do
-	req <- parseRequest (renderStr uri)
 	$logDebug $ "Downloading: " <> arrow_text <> "..."
 	t <- liftIO getPOSIXTime
-	body <- responseBody <$> liftIO (httpLbs req mgr)
+	body <- requestURI mgr uri
 	t' <- liftIO getPOSIXTime
 
 	let dt = t' - t
