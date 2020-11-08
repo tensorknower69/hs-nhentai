@@ -25,6 +25,9 @@ data ImageType = JPG | PNG | GIF deriving (Show, Eq, Read)
 imageTypeToExtension :: ImageType -> String
 imageTypeToExtension = map toLower . show
 
+-- | Nothing: unknown image type
+-- Just Nothing: the image is invalid, and therefore unknown image type
+-- Just (Just x): x is an actual image type
 extensionToImageType :: String -> Maybe (Maybe ImageType)
 extensionToImageType (a : _) = charToImageType a
 extensionToImageType _ = Nothing
@@ -36,5 +39,5 @@ charToImageType :: Char -> Maybe (Maybe ImageType)
 charToImageType 'j' = Just $ Just JPG
 charToImageType 'p' = Just $ Just PNG
 charToImageType 'g' = Just $ Just GIF
-charToImageType '0' = Just Nothing -- e.g. https://i.nhentai.net/galleries/900513/2.00
+charToImageType '0' = Just Nothing -- e.g. https://i.nhentai.net/galleries/900513/2.00 https://nhentai.net/api/gallery/155974
 charToImageType _ = Nothing
