@@ -1,7 +1,7 @@
 module NHentai.Utils where
 
 import Control.Error
-import Control.Exception
+import Control.Exception hiding (catch, mask)
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Logger
@@ -12,9 +12,21 @@ import Options.Applicative
 import Options.Applicative.Types
 import Refined
 import Streaming as S
+import qualified Streaming.Internal as S
 
 -- i honestly think that this is not a good idea
-instance (Functor f, MonadThrow m) => MonadThrow (Stream f m)
+instance (Functor f, MonadThrow m) => MonadThrow (Stream f m) where
+	throwM = lift . throwM
+
+-- https://hackage.haskell.org/package/streaming-0.2.3.0/docs/src/Streaming.Internal.html#line-381
+instance (Functor f, MonadCatch m) => MonadCatch (Stream f m) where
+	stream `catch` f = loop stream
+		where
+		loop x = case x of
+			S.Return r -> S.Return r
+			S.Effect m -> S.Effect $ fmap loop m `catch` (pure . f)
+			S.Step g -> S.Step (fmap loop g)
+
 instance (Functor f, MonadLogger m) => MonadLogger (Stream f m)
 instance (Functor f, MonadLoggerIO m) => MonadLoggerIO (Stream f m)
 

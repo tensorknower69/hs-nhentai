@@ -14,6 +14,7 @@ import Control.Monad.Logger
 import Control.Monad.State
 import Control.Monad.Trans.Control
 import Data.Aeson hiding (json)
+import Data.List
 import Data.NHentai.API.Gallery
 import Data.NHentai.Scraper.HomePage
 import Data.NHentai.Scraper.Types
@@ -35,7 +36,7 @@ import qualified Data.Text as T
 import qualified Streaming.Concurrent as S
 import qualified Streaming.Prelude as S
 
-requestURI :: (MonadThrow m, MonadIO m) => Manager -> URI -> m BL.ByteString
+requestURI :: (MonadCatch m, MonadIO m) => Manager -> URI -> m BL.ByteString
 requestURI mgr uri = do
 	req <- parseRequest (renderStr uri)
 	let req' = req
@@ -43,7 +44,7 @@ requestURI mgr uri = do
 		}
 	responseBody <$> liftIO (httpLbs req' mgr)
 
-getLatestGalleryId :: (MonadThrow m, MonadIO m) => Manager -> m GalleryID
+getLatestGalleryId :: (MonadCatch m, MonadIO m) => Manager -> m GalleryID
 getLatestGalleryId mgr = do
 	url <- mkHomePageUrl $$(refineTH 1)
 	body <- requestURI mgr url
@@ -155,11 +156,14 @@ programOptionsParser = ProgramOptions <$> log_level_parser <*> mainOptionsParser
 		<> showDefault
 		)
 
-download :: (MonadThrow m, MonadLoggerIO m) => Manager -> URI -> FilePath -> m ()
+download :: (MonadCatch m, MonadLoggerIO m) => Manager -> URI -> FilePath -> m ()
 download mgr uri dest_path = do
 	$logDebug $ "Downloading: " <> arrow_text <> "..."
 	t <- liftIO getPOSIXTime
-	body <- requestURI mgr uri
+	body <- fix $ \loop -> do
+		requestURI mgr uri `catch` \(e :: SomeException) -> do
+			$logError $ "Redownloading, error when doing request: " <> render uri <> "\n- Error: " <> T.pack (show e)
+			loop
 	t' <- liftIO getPOSIXTime
 
 	let dt = t' - t
@@ -178,7 +182,7 @@ download mgr uri dest_path = do
 	least_size = 2000
 	most_dt = 5.0
 
-fetch :: (MonadThrow m, MonadLoggerIO m) => Manager -> URI -> FilePath -> m BL.ByteString
+fetch :: (MonadCatch m, MonadLoggerIO m) => Manager -> URI -> FilePath -> m BL.ByteString
 fetch mgr uri dest_path = do
 	exist <- liftIO $ doesFileExist dest_path
 	if exist then do
@@ -192,7 +196,7 @@ fetch mgr uri dest_path = do
 data Download = Download URI FilePath
 	deriving (Show, Eq)
 
-runDownload :: (MonadThrow m, MonadLoggerIO m) => Manager -> Download -> m ()
+runDownload :: (MonadCatch m, MonadLoggerIO m) => Manager -> Download -> m ()
 runDownload mgr (Download url dest_path) = download mgr url dest_path
 
 data DownloaderState
@@ -204,9 +208,10 @@ data DownloaderState
 initDownloaderState :: DownloaderState
 initDownloaderState = DownloaderState
 
-fetchGallery :: (MonadThrow m, MonadLoggerIO m, MonadState DownloaderState m) => OutputConfig -> Manager -> GalleryID -> Stream (Of Download) m ()
+fetchGallery :: (MonadCatch m, MonadLoggerIO m, MonadState DownloaderState m) => OutputConfig -> Manager -> GalleryID -> Stream (Of Download) m ()
 fetchGallery conf mgr gid = do
 	gallery_api_url <- mkGalleryApiUrl gid
+	$logInfo $ "Fetching gallery: " <> render gallery_api_url
 	body <- fetch mgr gallery_api_url gallery_json_path
 	case eitherDecode @APIGalleryResult body of
 		Left error_string -> do
@@ -238,7 +243,8 @@ fetchGallery conf mgr gid = do
 		my_list _ _ = pure []
 
 runMainOptions :: (MonadMask m, MonadBaseControl IO m, MonadLoggerIO m) => MainOptions -> m ()
-runMainOptions (MainOptionsDownload {..}) = run_download galleryIdListing'MainOptionsDownload
+runMainOptions (MainOptionsDownload {..}) = do
+	run_download galleryIdListing'MainOptionsDownload
 	where
 	run_download (GIDListingList {..}) = do
 		mgr <- newTlsManager
@@ -249,8 +255,8 @@ runMainOptions (MainOptionsDownload {..}) = run_download galleryIdListing'MainOp
 		$logInfo $ "Latest gallery: " <> T.pack (show $ latest_gid)
 		gids <- traverse refineThrow $ enumFromThenTo (latest_gid) (latest_gid - 1) 1
 		download_gids gids mgr
-	download_gids gids mgr = (flip evalStateT) initDownloaderState $
-		S.withStreamMapM
+	download_gids gids mgr = do
+		(flip evalStateT) initDownloaderState $ S.withStreamMapM
 			(unrefine numThreads'MainOptionsDownload)
 			(runDownload mgr)
 			(S.for
@@ -258,6 +264,7 @@ runMainOptions (MainOptionsDownload {..}) = run_download galleryIdListing'MainOp
 				(fetchGallery outputConfig'MainOptionsDownload mgr)
 			)
 			S.effects
+		$logInfo $ "Done downloading all galleries: " <> T.pack (intercalate " " . fmap (show . unrefine) $ gids)
 
 main :: IO ()
 main = do
