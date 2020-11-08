@@ -8,7 +8,6 @@ import Control.Applicative
 import Control.Error
 import Control.Lens
 import Control.Monad
-import Data.Char
 import Data.List.Lens
 import Data.List.Split
 import Data.NHentai.Types
@@ -55,9 +54,12 @@ galleryScraper = do
 	caption <- castString <$> Scalpel.text ("div" @: [hasClass "caption"])
 	data_src <- castString <$> (attr "data-src" "img") >>= justZ . mkURI
 	media_id <- data_src ^. uriPath ^? ix 1 . unRText . unpacked ^. to (justZ >=> readZ >=> refineFail)
-	image_type <- data_src ^. uriPath ^? ix 2 . unRText . unpacked . prefixed "thumb." . to (map toUpper) ^. to (justZ >=> readZ)
-	(width, height)  <- traverseOf each scrapDimension ("width", "height")
-	pure $ ScraperGallery gid media_id tag_ids caption (ImageSpec image_type width height)
+	may_may_image_type <- data_src ^. uriPath ^? ix 2 . unRText . unpacked . prefixed "thumb." . to (extensionToImageType) ^. to justZ
+	case may_may_image_type of
+		Nothing -> fail "unknown image type"
+		Just may_image_type -> do
+			(width, height)  <- traverseOf each scrapDimension ("width", "height")
+			pure $ ScraperGallery gid media_id tag_ids caption (ImageSpec may_image_type width height)
 	where
 	scrapDimension name = (castString <$> attr name "img") >>= readZ >>= refineFail
 	extractDataTags x = traverse (readZ >=> refineFail) (splitOn " " (castString x))

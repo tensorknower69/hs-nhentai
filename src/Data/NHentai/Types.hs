@@ -14,7 +14,7 @@ data TagType = TagTag | LanguageTag | CategoryTag | CharacterTag | GroupTag | Ar
 
 data ImageSpec
 	= ImageSpec
-		{ type'ImageSpec :: ImageType
+		{ type'ImageSpec :: Maybe ImageType
 		, width'ImageSpec :: Refined Positive Int
 		, height'ImageSpec :: Refined Positive Int
 		}
@@ -22,5 +22,19 @@ data ImageSpec
 
 data ImageType = JPG | PNG | GIF deriving (Show, Eq, Read)
 
-imageTypeExtension :: ImageType -> String
-imageTypeExtension = map toLower . show
+imageTypeToExtension :: ImageType -> String
+imageTypeToExtension = map toLower . show
+
+extensionToImageType :: String -> Maybe (Maybe ImageType)
+extensionToImageType (a : _) = charToImageType a
+extensionToImageType _ = Nothing
+
+-- | Nothing: unknown image type
+-- Just Nothing: the image is invalid, and therefore unknown image type
+-- Just (Just x): x is an actual image type
+charToImageType :: Char -> Maybe (Maybe ImageType)
+charToImageType 'j' = Just $ Just JPG
+charToImageType 'p' = Just $ Just PNG
+charToImageType 'g' = Just $ Just GIF
+charToImageType '0' = Just Nothing -- e.g. https://i.nhentai.net/galleries/900513/2.00
+charToImageType _ = Nothing

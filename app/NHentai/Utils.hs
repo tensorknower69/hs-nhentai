@@ -12,6 +12,7 @@ import Options.Applicative
 import Options.Applicative.Types
 import Refined
 import Streaming as S
+import qualified Data.ByteString.Lazy as BL
 import qualified Streaming.Internal as S
 
 -- i honestly think that this is not a good idea
@@ -30,7 +31,10 @@ instance (Functor f, MonadCatch m) => MonadCatch (Stream f m) where
 instance (Functor f, MonadLogger m) => MonadLogger (Stream f m)
 instance (Functor f, MonadLoggerIO m) => MonadLoggerIO (Stream f m)
 
-data ScalpelException = ScalpelException
+data ScalpelException
+	= ScalpelException
+		{ input'ScalpelException :: BL.ByteString
+		}
 	deriving (Show, Eq)
 instance Exception ScalpelException
 

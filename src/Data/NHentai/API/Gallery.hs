@@ -50,14 +50,15 @@ instance FromJSON APITagType where
 			Just j -> pure $ APITagType j
 			Nothing -> fail $ "unknown tag type: " <> show v'
 
-newtype APIImageType = APIImageType { unAPIImageType :: ImageType } deriving (Show, Eq)
+newtype APIImageType = APIImageType { unAPIImageType :: Maybe ImageType } deriving (Show, Eq)
 
 instance FromJSON APIImageType where
-	parseJSON = withText "APIImageType" $ \case
-		"j" -> pure $ APIImageType JPG
-		"p" -> pure $ APIImageType PNG
-		"g" -> pure $ APIImageType GIF
-		c -> fail $ "unknown image type: " <> show c
+	parseJSON = withText "APIImageType" $ \r -> do
+		case headMay (T.unpack r) of
+			Nothing -> fail $ "image type string is empty"
+			Just c -> case charToImageType c of
+				Nothing -> fail $ "unknown image type: " <> show c
+				Just t -> pure $ APIImageType t
 
 newtype APIImageSpec = APIImageSpec { unAPIImageSpec :: ImageSpec } deriving (Show, Eq)
 
@@ -107,7 +108,7 @@ data APIGallery
 mkPageThumbUrl :: MonadThrow m => MediaID -> PageIndex -> ImageType -> m URI
 mkPageThumbUrl mid pid image_type = do
 	mid_path_piece <- mkPathPiece (show (unrefine mid) ^. packed)
-	image_path_piece <- mkPathPiece (show (unrefine pid) ^. packed <> "t." <> imageTypeExtension image_type ^. packed)
+	image_path_piece <- mkPathPiece (show (unrefine pid) ^. packed <> "t." <> imageTypeToExtension image_type ^. packed)
 	pure $ prefix & uriPath %~ (<> [mid_path_piece, image_path_piece])
 	where
 	prefix = [uri|https://t.nhentai.net/galleries|]

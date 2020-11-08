@@ -49,7 +49,7 @@ getLatestGalleryId mgr = do
 	url <- mkHomePageUrl $$(refineTH 1)
 	body <- requestURI mgr url
 	case scrapeStringLike body homePageScraper of
-		Nothing -> throwM ScalpelException
+		Nothing -> throwM $ ScalpelException body
 		Just home_page -> pure . galleryId'ScraperGallery . L.head $ recentGalleries'HomePage home_page
 
 data OutputConfig
@@ -61,7 +61,7 @@ data OutputConfig
 simpleOutputConfig :: (GalleryID -> FilePath) -> OutputConfig
 simpleOutputConfig prefix = OutputConfig
 	{ getGalleryJsonPath'OutputConfig = \gid -> prefix gid </> "gallery.json"
-	, getGalleryPageThumbPath'OutputConfig = \gid _ pid img_type -> prefix gid </> (show (unrefine pid) <> "." <> imageTypeExtension img_type)
+	, getGalleryPageThumbPath'OutputConfig = \gid _ pid img_type -> prefix gid </> (show (unrefine pid) <> "." <> imageTypeToExtension img_type)
 	}
 
 mkDefaultOutputConfig :: FilePath -> OutputConfig
@@ -227,19 +227,30 @@ fetchGallery conf mgr gid = do
 			S.each downloads
 	where
 	gallery_json_path = getGalleryJsonPath'OutputConfig conf gid
-	extractDownloads (APIGallery {..}) = my_list 1 pages'APIGallery
+	extractDownloads (APIGallery {..}) = my_list $$(refineTH 1) pages'APIGallery
 		where
-		my_list page_index' (page_image_spec : rest) = do
-			page_index <- refineThrow page_index'
-			let page_thumb_path = getGalleryPageThumbPath'OutputConfig conf id'APIGallery mediaId'APIGallery page_index image_type
-			page_thumb_exist <- liftIO $ doesFileExist page_thumb_path
-			if page_thumb_exist then next
-			else do
-				page_thumb_url <- mkPageThumbUrl mediaId'APIGallery page_index image_type
-				fmap (Download page_thumb_url page_thumb_path :) next
+		my_list page_index (page_image_spec : rest) = do
+			case type'ImageSpec page_image_spec of
+				Nothing -> do
+					$logWarn $ "Image type is '0': Gallery: "
+						<> T.pack (show $ unrefine id'APIGallery)
+						<> ", page: "
+						<> T.pack (show $ unrefine page_index)
+						<> ", the image is probably invalid, skipping"
+					next
+				Just image_type -> do
+					let page_thumb_path = getGalleryPageThumbPath'OutputConfig conf id'APIGallery mediaId'APIGallery page_index image_type
+					page_thumb_exist <- liftIO $ doesFileExist page_thumb_path
+					if page_thumb_exist then do
+						next
+					else do
+						page_thumb_url <- mkPageThumbUrl mediaId'APIGallery page_index image_type
+						next' <- next
+						pure $ Download page_thumb_url page_thumb_path : next'
 			where
-			image_type = type'ImageSpec page_image_spec
-			next = my_list (page_index' + 1) rest
+			next = do
+				page_index_next <- refineThrow $ unrefine page_index + 1
+				my_list page_index_next rest
 		my_list _ _ = pure []
 
 runMainOptions :: (MonadMask m, MonadBaseControl IO m, MonadLoggerIO m) => MainOptions -> m ()
