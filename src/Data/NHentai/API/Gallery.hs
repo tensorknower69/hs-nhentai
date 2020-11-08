@@ -50,15 +50,18 @@ instance FromJSON APITagType where
 			Just j -> pure $ APITagType j
 			Nothing -> fail $ "unknown tag type: " <> show v'
 
-newtype APIImageType = APIImageType { unAPIImageType :: Maybe ImageType } deriving (Show, Eq)
+-- e.g. https://i.nhentai.net/galleries/900513/2.00 https://nhentai.net/api/gallery/155974
+-- e.g. https://nhentai.net/g/155844/24/
+newtype APIImageType = APIImageType { unAPIImageType :: Either String ImageType } deriving (Show, Eq)
 
 instance FromJSON APIImageType where
-	parseJSON = withText "APIImageType" $ \r -> do
-		case headMay (T.unpack r) of
+	parseJSON = withText "APIImageType" $ \string_packed -> do
+		let string = T.unpack string_packed
+		case headMay string of
 			Nothing -> fail $ "image type string is empty"
-			Just c -> case charToImageType c of
-				Nothing -> fail $ "unknown image type: " <> show c
-				Just t -> pure $ APIImageType t
+			Just ch -> case charToImageType ch of
+				Nothing -> pure . APIImageType . Left $ string
+				Just image_type -> pure . APIImageType . Right $ image_type
 
 newtype APIImageSpec = APIImageSpec { unAPIImageSpec :: ImageSpec } deriving (Show, Eq)
 

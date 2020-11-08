@@ -230,15 +230,17 @@ fetchGallery conf mgr gid = do
 	extractDownloads (APIGallery {..}) = my_list $$(refineTH 1) pages'APIGallery
 		where
 		my_list page_index (page_image_spec : rest) = do
-			case type'ImageSpec page_image_spec of
-				Nothing -> do
-					$logWarn $ "Image type is '0': Gallery: "
+			case eitherImageType'ImageSpec page_image_spec of
+				Left string -> do
+					$logWarn $ "Image type is "
+						<> T.pack (show string)
+						<> ": Gallery: "
 						<> T.pack (show $ unrefine id'APIGallery)
 						<> ", page: "
 						<> T.pack (show $ unrefine page_index)
 						<> ", the image is probably invalid, skipping"
 					next
-				Just image_type -> do
+				Right image_type -> do
 					let page_thumb_path = getGalleryPageThumbPath'OutputConfig conf id'APIGallery mediaId'APIGallery page_index image_type
 					page_thumb_exist <- liftIO $ doesFileExist page_thumb_path
 					if page_thumb_exist then do

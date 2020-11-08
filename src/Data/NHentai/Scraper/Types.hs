@@ -54,13 +54,12 @@ galleryScraper = do
 	caption <- castString <$> Scalpel.text ("div" @: [hasClass "caption"])
 	data_src <- castString <$> (attr "data-src" "img") >>= justZ . mkURI
 	media_id <- data_src ^. uriPath ^? ix 1 . unRText . unpacked ^. to (justZ >=> readZ >=> refineFail)
-	may_may_image_type <- data_src ^. uriPath ^? ix 2 . unRText . unpacked . prefixed "thumb." . to (extensionToImageType) ^. to justZ
-	case may_may_image_type of
-		Nothing -> fail "unknown image type"
-		Just may_image_type -> do
-			(width, height)  <- traverseOf each scrapDimension ("width", "height")
-			pure $ ScraperGallery gid media_id tag_ids caption (ImageSpec may_image_type width height)
+	either_image_type <- data_src ^. uriPath ^? ix 2 . unRText . unpacked . prefixed "thumb." . to extensionToImageTypeEither ^. to justZ
+	(width, height)  <- traverseOf each scrapDimension ("width", "height")
+	pure $ ScraperGallery gid media_id tag_ids caption (ImageSpec either_image_type width height)
 	where
+	extensionToImageTypeEither my_str = maybe (Left my_str) Right (extensionToImageType my_str)
+
 	scrapDimension name = (castString <$> attr name "img") >>= readZ >>= refineFail
 	extractDataTags x = traverse (readZ >=> refineFail) (splitOn " " (castString x))
 	-- e.g. /g/177013/
