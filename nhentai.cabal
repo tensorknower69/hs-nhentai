@@ -101,14 +101,19 @@ test-suite nhentai-test
     , base >=4.7 && <5
     , errors
     , exceptions
+    , http-client
+    , http-client-tls
     , lens
     , modern-uri
     , nhentai
     , refined
+    , scalpel
     , scalpel-core
     , scientific
     , split
     , tagsoup
+    , tasty
+    , tasty-hunit
     , text
     , time
   default-language: Haskell2010

@@ -71,3 +71,8 @@ tests:
       - -with-rtsopts=-N
     dependencies:
       - nhentai
+      - scalpel
+      - tasty-hunit
+      - tasty
+      - http-client
+      - http-client-tls

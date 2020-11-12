@@ -1,5 +1,5 @@
 resolver: lts-16.11
-package:
+packages:
   - .
 extra-deps:
   - refined-0.6.1@sha256:d5d713f0a2ad79d1c049d2d132fd8c2078b883b5ea3db876087eaec102843e57,2748
