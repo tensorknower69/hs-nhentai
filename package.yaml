@@ -1,0 +1,73 @@
+name: "nhentai"
+version: 0.1.0.0
+github: "tensorknower69/hs-nhentai"
+license: MIT
+author: "tensorknower69"
+maintainer: "tensorknower69 <62006583+tensorknower69@users.noreply.github.com>"
+copyright: "2020 tensorknower69"
+description: Please see README.md on GitHub at https://github.com/tensorknower69/hs-nhentai#readme
+
+extra-source-files:
+  - README.md
+
+dependencies:
+  - base >= 4.7 && < 5
+  - text
+  - modern-uri
+  - time
+  - refined
+  - tagsoup
+  - scalpel-core
+  - lens
+  - split
+  - errors
+  - exceptions
+  - scientific
+  - aeson
+
+library:
+  source-dirs: src
+  ghc-options:
+    - -Wall
+    - -Wno-tabs
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+
+executables:
+  nhentai:
+    main: NHentai/Main.hs
+    source-dirs: app
+    ghc-options:
+      - -Wall
+      - -Wno-tabs
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - nhentai
+      - streaming
+      - bytestring
+      - optparse-applicative
+      - mtl
+      - monad-logger
+      - monad-control
+      - streaming-concurrency
+      - scalpel
+      - filepath
+      - directory
+      - http-client
+      - http-client-tls
+
+tests:
+  nhentai-test:
+    main: Test.hs
+    source-dirs: test
+    ghc-options:
+      - -Wall
+      - -Wno-tabs
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - nhentai

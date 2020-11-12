@@ -1,88 +1,114 @@
-cabal-version: >=1.10
-name: hs-nhentai
-version: 0.1.0.0
-build-type: Simple
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.34.2.
+--
+-- see: https://github.com/sol/hpack
+
+name:           nhentai
+version:        0.1.0.0
+description:    Please see README.md on GitHub at https://github.com/tensorknower69/hs-nhentai#readme
+homepage:       https://github.com/tensorknower69/hs-nhentai#readme
+bug-reports:    https://github.com/tensorknower69/hs-nhentai/issues
+author:         tensorknower69
+maintainer:     tensorknower69 <62006583+tensorknower69@users.noreply.github.com>
+copyright:      2020 tensorknower69
+license:        MIT
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+
+source-repository head
+  type: git
+  location: https://github.com/tensorknower69/hs-nhentai
 
 library
-  default-language: Haskell2010
-  ghc-options: -Wall -Wno-tabs
-  hs-source-dirs: src
   exposed-modules:
-    Data.NHentai.Internal.Utils
-    Data.NHentai.Types
-    Data.NHentai.API.Gallery
-    Data.NHentai.API.Comment
-    Data.NHentai.Scraper.HomePage
-    Data.NHentai.Scraper.Types
+      Data.NHentai.API.Comment
+      Data.NHentai.API.Gallery
+      Data.NHentai.Internal.Utils
+      Data.NHentai.Scraper.HomePage
+      Data.NHentai.Scraper.Types
+      Data.NHentai.Types
+  other-modules:
+      Paths_nhentai
+  hs-source-dirs:
+      src
+  ghc-options: -Wall -Wno-tabs -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-    base >=4.13 && <5
-    , mtl
-    , scalpel-core
-    , aeson
-    , text
-    , split
-    , time
-    , transformers
-    , modern-uri
-    , lens
-    , exceptions
-    , bytestring
-    , refined
+      aeson
+    , base >=4.7 && <5
     , errors
-    , tagsoup
+    , exceptions
+    , lens
+    , modern-uri
+    , refined
+    , scalpel-core
     , scientific
-
-executable nhentai-cli
+    , split
+    , tagsoup
+    , text
+    , time
   default-language: Haskell2010
-  ghc-options: -Wall -Wno-tabs -Wno-orphans
-  hs-source-dirs: app
+
+executable nhentai
   main-is: NHentai/Main.hs
   other-modules:
-    NHentai.Utils
+      NHentai.Utils
+      Paths_nhentai
+  hs-source-dirs:
+      app
+  ghc-options: -Wall -Wno-tabs -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-    base >=4.13 && <5
-    , hs-nhentai
-    , monad-logger
-    , text
-    , refined
-    , split
+      aeson
+    , base >=4.7 && <5
+    , bytestring
+    , directory
+    , errors
+    , exceptions
+    , filepath
+    , http-client
+    , http-client-tls
     , lens
+    , modern-uri
+    , monad-control
+    , monad-logger
+    , mtl
+    , nhentai
+    , optparse-applicative
+    , refined
+    , scalpel
+    , scalpel-core
+    , scientific
+    , split
     , streaming
     , streaming-concurrency
-    , exceptions
-    , scalpel
-    , monad-control
-    , filepath
-    , time
-    , directory
-    , modern-uri
-    , errors
-    , stm
-    , aeson
-    , optparse-applicative
-    , mtl
-    , bytestring
-    , http-client
-    , http-client-tls
-    , http-types
-
-test-suite hs-nhentai-test
-  type: exitcode-stdio-1.0
-  ghc-options: -Wall -Wno-tabs
-  default-language: Haskell2010
-  main-is: Test.hs
-  hs-source-dirs: test
-  build-depends:
-    base >=4.13 && <5
-    , hs-nhentai
-    , scalpel
-    , aeson
+    , tagsoup
     , text
-    , bytestring
-    , http-client
-    , http-client-tls
-    , http-types
+    , time
+  default-language: Haskell2010
+
+test-suite nhentai-test
+  type: exitcode-stdio-1.0
+  main-is: Test.hs
+  other-modules:
+      Paths_nhentai
+  hs-source-dirs:
+      test
+  ghc-options: -Wall -Wno-tabs -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      aeson
+    , base >=4.7 && <5
+    , errors
+    , exceptions
+    , lens
     , modern-uri
+    , nhentai
     , refined
-    , tasty
-    , tasty-hunit
+    , scalpel-core
+    , scientific
+    , split
+    , tagsoup
+    , text
+    , time
+  default-language: Haskell2010
