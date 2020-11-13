@@ -1,17 +1,12 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Data.NHentai.Scraper.HomePage
-( mkHomePageUrl
-
-, HomePage(..)
-, homePageScraper
-)
-where
+module Data.NHentai.Scraper.HomePage where
 
 import Control.Applicative
 import Control.Lens
@@ -30,11 +25,16 @@ import Text.URI.QQ
 
 data HomePage
 	= HomePage
-		{ pagination'HomePage :: Pagination
-		, popularGalleries'HomePage :: [ScraperGallery]
-		, recentGalleries'HomePage :: NonEmpty ScraperGallery
+		{ _homePagePagination :: Pagination
+		, _popularGalleries :: [ScraperGallery]
+		, _recentGalleries :: NonEmpty ScraperGallery
 		}
 	deriving (Show, Eq)
+
+makeLenses ''HomePage
+
+instance HasPagination HomePage where
+	pagination = homePagePagination
 
 homePageScraper :: (Show str, StringLike str) => Scraper str HomePage
 homePageScraper = do
@@ -43,9 +43,9 @@ homePageScraper = do
 	case nonEmpty recent' of
 		Nothing -> fail "no recent galleries"
 		Just recent -> do
-			pagination <- chroot ("section" @: [hasClass "pagination"]) paginationScraper
+			pagin <- chroot ("section" @: [hasClass "pagination"]) paginationScraper
 			popular <- containerScraper ["index-popular"] <|> pure []
-			pure $ HomePage pagination popular recent
+			pure $ HomePage pagin popular recent
 	where
 	containerScraper index_classes = chroots ("div" @: ["class" @= intercalate " " (["container", "index-container"] <> index_classes)] // "div" @: [hasClass "gallery"]) galleryScraper
 

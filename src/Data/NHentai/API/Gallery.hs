@@ -2,16 +2,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TemplateHaskell #-}
 
-module Data.NHentai.API.Gallery
-( mkGalleryApiUrl
-, mkPageThumbUrl
-
-, APIGalleryResult(..)
-, APIGallery(..)
-, APITag(..)
-)
-where
+module Data.NHentai.API.Gallery where
 
 import Control.Applicative
 import Control.Error
@@ -59,7 +52,7 @@ instance FromJSON APIImageType where
 		let string = T.unpack string_packed
 		case headMay string of
 			Nothing -> fail $ "image type string is empty"
-			Just ch -> case charToImageType ch of
+			Just ch -> case ch ^? extensionChar of
 				Nothing -> pure . APIImageType . Left $ string
 				Just image_type -> pure . APIImageType . Right $ image_type
 
@@ -74,13 +67,15 @@ instance FromJSON APIImageSpec where
 
 data APITag
 	= APITag
-		{ id'APITag :: TagID
-		, type'APITag :: TagType
-		, name'APITag :: T.Text
-		, url'APITag :: T.Text
-		, count'APITag :: Refined NonNegative Int
+		{ _tagId :: TagID
+		, _tagType :: TagType
+		, _tagName :: T.Text
+		, _tagUrl :: T.Text
+		, _tagCount :: Refined NonNegative Int
 		}
 	deriving (Show, Eq)
+
+makeLenses ''APITag
 
 instance FromJSON APITag where
 	parseJSON = withObject "APITag" $ \v -> APITag
@@ -92,26 +87,34 @@ instance FromJSON APITag where
 
 data APIGallery
 	= APIGallery
-		{ id'APIGallery :: GalleryID
-		, mediaId'APIGallery :: MediaID
-		, titleEnglish'APIGallery :: T.Text
-		, titleJapanese'APIGallery :: Maybe T.Text
-		, titlePretty'APIGallery :: T.Text
-		, pages'APIGallery :: [ImageSpec]
-		, cover'APIGallery :: ImageSpec
-		, thumbnail'APIGallery :: ImageSpec
-		, scanlator'APIGallery :: T.Text
-		, uploadDate'APIGallery :: UTCTime
-		, tags'APIGallery :: [APITag]
-		, numPages'APIGallery :: PageIndex
-		, numFavorites'APIGallery :: Refined NonNegative Int
+		{ _apiGalleryId :: GalleryID
+		, _apiMediaId :: MediaID
+		, _titleEnglish :: T.Text
+		, _titleJapanese :: Maybe T.Text
+		, _titlePretty :: T.Text
+		, _pages :: [ImageSpec]
+		, _cover :: ImageSpec
+		, _thumbnail :: ImageSpec
+		, _scanlator :: T.Text
+		, _uploadDate :: UTCTime
+		, _tags :: [APITag]
+		, _numPages :: PageIndex
+		, _numFavorites :: Refined NonNegative Int
 		}
 	deriving (Show, Eq)
+
+makeLenses ''APIGallery
+
+instance HasGalleryID APIGallery where
+	galleryId = apiGalleryId
+
+instance HasMediaID APIGallery where
+	mediaId = apiMediaId
 
 mkPageThumbUrl :: MonadThrow m => MediaID -> PageIndex -> ImageType -> m URI
 mkPageThumbUrl mid pid image_type = do
 	mid_path_piece <- mkPathPiece (show (unrefine mid) ^. packed)
-	image_path_piece <- mkPathPiece (show (unrefine pid) ^. packed <> "t." <> imageTypeToExtension image_type ^. packed)
+	image_path_piece <- mkPathPiece (show (unrefine pid) ^. packed <> "t." <> (extension # image_type) ^. packed)
 	pure $ prefix & uriPath %~ (<> [mid_path_piece, image_path_piece])
 	where
 	prefix = [uri|https://t.nhentai.net/galleries|]

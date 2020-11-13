@@ -6,7 +6,8 @@ cabal-version: 1.12
 
 name:           nhentai
 version:        0.1.0.0
-description:    Please see README.md on GitHub at https://github.com/tensorknower69/hs-nhentai#readme
+synopsis:       Scrape/download nhentai galleries and JSONs
+category:       Web
 homepage:       https://github.com/tensorknower69/hs-nhentai#readme
 bug-reports:    https://github.com/tensorknower69/hs-nhentai/issues
 author:         tensorknower69
@@ -54,11 +55,12 @@ library
 executable nhentai
   main-is: NHentai/Main.hs
   other-modules:
+      NHentai.Options
       NHentai.Utils
       Paths_nhentai
   hs-source-dirs:
       app
-  ghc-options: -Wall -Wno-tabs -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wno-tabs -Wno-orphans -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
     , base >=4.7 && <5
@@ -77,7 +79,6 @@ executable nhentai
     , nhentai
     , optparse-applicative
     , refined
-    , scalpel
     , scalpel-core
     , scientific
     , split

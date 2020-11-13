@@ -1,11 +1,12 @@
-name: "nhentai"
-version: 0.1.0.0
+author: "tensorknower69"
+category: Web
+copyright: "2020 tensorknower69"
 github: "tensorknower69/hs-nhentai"
 license: MIT
-author: "tensorknower69"
 maintainer: "tensorknower69 <62006583+tensorknower69@users.noreply.github.com>"
-copyright: "2020 tensorknower69"
-description: Please see README.md on GitHub at https://github.com/tensorknower69/hs-nhentai#readme
+name: "nhentai"
+synopsis: "Scrape/download nhentai galleries and JSONs"
+version: 0.1.0.0
 
 extra-source-files:
   - README.md
@@ -41,6 +42,7 @@ executables:
     ghc-options:
       - -Wall
       - -Wno-tabs
+      - -Wno-orphans
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N
@@ -53,7 +55,6 @@ executables:
       - monad-logger
       - monad-control
       - streaming-concurrency
-      - scalpel
       - filepath
       - directory
       - http-client

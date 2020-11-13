@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QuasiQuotes #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Data.NHentai.Scraper.Types
 where
@@ -23,10 +24,12 @@ import qualified Data.Text as T
 
 data Pagination
 	= Pagination
-		{ current'Pagination :: PageIndex
-		, last'Pagination :: PageIndex
+		{ _currentPage :: PageIndex
+		, _lastPage :: PageIndex
 		}
 	deriving (Show, Eq)
+
+makeClassy ''Pagination
 
 paginationScraper :: (Show str, StringLike str) => Scraper str Pagination
 paginationScraper = Pagination <$> current <*> (last' <|> current)
@@ -39,26 +42,31 @@ paginationScraper = Pagination <$> current <*> (last' <|> current)
 
 data ScraperGallery
 	= ScraperGallery
-		{ galleryId'ScraperGallery :: GalleryID
-		, mediaId'ScraperGallery :: MediaID
-		, dataTags'ScraperGallery :: [TagID]
-		, caption'ScraperGallery :: T.Text
-		, coverImageSpec'ScraperGallery :: ImageSpec
+		{ _scraperGalleryId :: GalleryID
+		, _scraperMediaId :: MediaID
+		, _dataTags :: [TagID]
+		, _caption :: T.Text
+		, _coverImageSpec :: ImageSpec
 		}
 	deriving (Show, Eq)
+
+makeLenses ''ScraperGallery
+
+instance HasTitle ScraperGallery where
+	title = caption
 
 galleryScraper :: (Show str, StringLike str, Monad m) => ScraperT str m ScraperGallery
 galleryScraper = do
 	gid <- attr "href" ("a" @: [hasClass "cover"]) >>= extractGid
 	tag_ids <- attr "data-tags" anySelector >>= extractDataTags
-	caption <- castString <$> Scalpel.text ("div" @: [hasClass "caption"])
+	capt <- castString <$> Scalpel.text ("div" @: [hasClass "caption"])
 	data_src <- castString <$> (attr "data-src" "img") >>= justZ . mkURI
-	media_id <- data_src ^. uriPath ^? ix 1 . unRText . unpacked ^. to (justZ >=> readZ >=> refineFail)
-	either_image_type <- data_src ^. uriPath ^? ix 2 . unRText . unpacked . prefixed "thumb." . to extensionToImageTypeEither ^. to justZ
-	(width, height)  <- traverseOf each scrapDimension ("width", "height")
-	pure $ ScraperGallery gid media_id tag_ids caption (ImageSpec either_image_type width height)
+	mid <- data_src ^. uriPath ^? ix 1 . unRText . unpacked ^. to (justZ >=> readZ >=> refineFail)
+	eitherimgtype <- data_src ^. uriPath ^? ix 2 . unRText . unpacked . prefixed "thumb." . to extensionToImageTypeEither ^. to justZ
+	(w, h)  <- traverseOf each scrapDimension ("width", "height")
+	pure $ ScraperGallery gid mid tag_ids capt (ImageSpec eitherimgtype w h)
 	where
-	extensionToImageTypeEither my_str = maybe (Left my_str) Right (extensionToImageType my_str)
+	extensionToImageTypeEither my_str = maybe (Left my_str) Right (my_str ^? extension)
 
 	scrapDimension name = (castString <$> attr name "img") >>= readZ >>= refineFail
 	extractDataTags x = traverse (readZ >=> refineFail) (splitOn " " (castString x))
