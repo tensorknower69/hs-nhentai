@@ -61,7 +61,7 @@ requestFromModernURI cfg uri = do
 		if statusCode status == 200 then do
 			pure rep
 		else do
-			$logError $ "Redownloading, abnormal status " <> (T.pack $ show $ statusCode status) <> ", URI: " <> render uri
+			$logError $ "Redownloading, abnormal status code: " <> (T.pack $ show $ statusCode status) <> ", URI: " <> render uri
 			loop
 
 	pure $ responseBody rep
