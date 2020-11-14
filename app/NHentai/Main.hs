@@ -57,12 +57,13 @@ requestFromModernURI cfg uri = do
 		rep <- (liftIO $ httpLbs req' (cfg ^. manager)) `catch` \(e :: SomeException) -> do
 			$logError $ "Redownloading, error when doing request: " <> render uri <> "\n- Error: " <> T.pack (show e)
 			loop
+
 		let status = responseStatus rep
-		if statusCode status == 200 then do
-			pure rep
-		else do
-			$logError $ "Redownloading, abnormal status code: " <> (T.pack $ show $ statusCode status) <> ", URI: " <> render uri
+		if statusCode status == 503 then do
+			$logError $ "Redownloading, abnormal status code: 503, URI: " <> render uri
 			loop
+		else do
+			pure rep
 
 	pure $ responseBody rep
 
