@@ -141,10 +141,12 @@ data MainOptions
 		, downloaderWarningOptions'MainOptionsDownload :: DownloaderWarningOptions
 		, downloadOptions'MainOptionsDownload :: DownloadOptions
 		}
+	| MainOptionsVersion
 
 mainOptionsParser :: Parser MainOptions
 mainOptionsParser = subparser
 	( main_download_command
+	<> main_version_command
 	)
 	where
 	main_download_command = command "download" $
@@ -152,6 +154,7 @@ mainOptionsParser = subparser
 			( fullDesc
 			<> progDesc "Download thumbnails"
 			)
+
 	main_download_option = MainOptionsDownload
 		<$> gidListingParser
 		<*> num_threads_parser
@@ -168,6 +171,12 @@ mainOptionsParser = subparser
 			<> help "Set the number of threads used in download images"
 			)
 
+	main_version_command = command "version" $ do
+		info (pure MainOptionsVersion <**> helper)
+			( fullDesc
+			<> progDesc "Print version"
+			)
+
 data ProgramOptions
 	= ProgramOptions
 		{ logLevel'ProgramOptions :: LogLevel
@@ -179,7 +188,7 @@ programOptionsParser = ProgramOptions <$> log_level_parser <*> mainOptionsParser
 	where
 	log_level_parser :: Parser LogLevel
 	log_level_parser = option logLevelReadM
-		( short 'v'
+		( short 'l'
 		<> long "log-level"
 		<> metavar "LOG_LEVEL"
 		<> value LevelDebug

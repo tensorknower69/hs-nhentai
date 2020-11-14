@@ -8,14 +8,14 @@ Get help:
 $ nhentai --help
 ```
 
-Download thumbnail images(only that for now) from https://nhentai.net/g/177013 to `galleries/` with 3 threads:
+Download thumbnail page images and page thumbnails from https://nhentai.net/g/177013 to `galleries/` with 3 threads:
 ```bash
-$ nhentai --log-level debug download --gallery-ids 177013 --num-threads 3 --output-dir galleries
+$ nhentai --log-level debug download --gallery-ids 177013 --download-page-image --download-page-thumbnail --num-threads 3 --output-dir galleries
 ```
 
 Download from the latest one to the beginning with another directory format:
 ```bash
-$ nhentai --log-level info download --all --num-threads 8 --output-config-2 --output-dir another_dest
+$ nhentai --log-level debug download --all --download-page-image --num-threads 8 --output-dir another_dest --output-config-2 --warn-most-duration 5 --warn-least-size 2000
 ```
 
 ## Installation

@@ -107,7 +107,7 @@ runDownload cfg (Download uri dest_path) = do
 				$logWarn $ "Downloaded content's size is too small: "
 					<> T.pack (show body_length)
 					<> " (<= "
-					<> T.pack (show least_size)
+					<> T.pack (show $ unrefine least_size)
 					<> " bytes): "
 					<> arrow_text
 					<> ", the content may be invalid or not"
@@ -238,7 +238,11 @@ runMainOptions (MainOptionsDownload {..}) = do
 				(fetchGallery cfg)
 			)
 			S.effects
+
 		$logInfo $ "Done downloading all galleries: " <> T.pack (intercalate " " . fmap (show . unrefine) $ L.toList gids)
+
+runMainOptions MainOptionsVersion = do
+	liftIO $ putStrLn "0.1.0.0"
 
 main :: IO ()
 main = do
