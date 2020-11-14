@@ -26,6 +26,7 @@ import NHentai.Options
 import NHentai.Utils
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
+import Network.HTTP.Types.Status
 import Options.Applicative
 import Refined
 import Streaming (Of)
@@ -45,18 +46,30 @@ class HasManager a where
 instance HasManager Manager where
 	manager = id
 
-requestURI :: (MonadCatch m, MonadIO m, HasManager cfg) => cfg -> URI -> m BL.ByteString
-requestURI cfg uri = do
+requestFromModernURI :: (MonadLoggerIO m, MonadCatch m, MonadIO m, HasManager cfg) => cfg -> URI -> m BL.ByteString
+requestFromModernURI cfg uri = do
 	req <- parseRequest (renderStr uri)
 	let req' = req
 		{ responseTimeout = responseTimeoutNone
 		}
-	responseBody <$> liftIO (httpLbs req' (cfg ^. manager))
 
-getLatestGalleryId :: (MonadCatch m, MonadIO m, HasManager cfg) => cfg -> m GalleryID
+	rep <- fix $ \loop -> do
+		rep <- (liftIO $ httpLbs req' (cfg ^. manager)) `catch` \(e :: SomeException) -> do
+			$logError $ "Redownloading, error when doing request: " <> render uri <> "\n- Error: " <> T.pack (show e)
+			loop
+		let status = responseStatus rep
+		if statusCode status == 200 then do
+			pure rep
+		else do
+			$logError $ "Redownloading, abnormal status " <> (T.pack $ show $ statusCode status) <> ", URI: " <> render uri
+			loop
+
+	pure $ responseBody rep
+
+getLatestGalleryId :: (MonadLoggerIO m, MonadCatch m, MonadIO m, HasManager cfg) => cfg -> m GalleryID
 getLatestGalleryId cfg = do
 	url <- mkHomePageUrl $$(refineTH 1)
-	body <- requestURI cfg url
+	body <- requestFromModernURI cfg url
 	case scrapeStringLike body homePageScraper of
 		Nothing -> throwM $ ScalpelException body
 		Just home_page -> pure $ home_page ^. recentGalleries . head1 . scraperGalleryId
@@ -94,10 +107,7 @@ runDownload cfg (Download uri dest_path) = do
 	else do
 		$logDebug $ "Downloading: " <> arrow_text <> "..."
 
-		(dt, body) <- withTimer $ fix $ \loop -> do
-			requestURI (cfg ^. manager) uri `catch` \(e :: SomeException) -> do
-				$logError $ "Redownloading, error when doing request: " <> render uri <> "\n- Error: " <> T.pack (show e)
-				loop
+		(dt, body) <- withTimer $ requestFromModernURI (cfg ^. manager) uri
 
 		let body_length = BL.length body
 		$logDebug $ "Downloaded: " <> arrow_text <> ", took " <> T.pack (show dt) <> ", byte length: " <> T.pack (show body_length)

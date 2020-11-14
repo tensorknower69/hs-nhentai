@@ -71,6 +71,7 @@ executable nhentai
     , filepath
     , http-client
     , http-client-tls
+    , http-types
     , lens
     , modern-uri
     , monad-control
