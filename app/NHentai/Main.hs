@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE LambdaCase #-}
@@ -16,6 +17,7 @@ import Control.Monad.Logger
 import Control.Monad.Trans.Control
 import Data.Aeson hiding (json)
 import Data.List
+import Data.Maybe
 import Data.NHentai.API.Gallery
 import Data.NHentai.Scraper.HomePage
 import Data.NHentai.Scraper.Types
@@ -61,9 +63,10 @@ getLatestGalleryId cfg = do
 
 data Config
 	= Config
-		{ _cfgDownloaderWarningOptions :: DownloaderWarningOptions
-		, _cfgManager :: Manager
+		{ _cfgManager :: Manager
+		, _cfgDownloaderWarningOptions :: DownloaderWarningOptions
 		, _cfgOutputConfig :: OutputConfig
+		, _cfgDownloadOptions :: DownloadOptions
 		}
 
 makeLenses ''Config
@@ -77,60 +80,84 @@ instance HasOutputConfig Config where
 instance HasManager Config where
 	manager = cfgManager
 
-download :: (MonadCatch m, MonadLoggerIO m, HasManager cfg, HasDownloaderWarningOptions cfg) => cfg -> URI -> FilePath -> m ()
-download cfg uri dest_path = do
-	$logDebug $ "Downloading: " <> arrow_text <> "..."
-
-	(dt, body) <- withTimer $ fix $ \loop -> do
-		requestURI (cfg ^. manager) uri `catch` \(e :: SomeException) -> do
-			$logError $ "Redownloading, error when doing request: " <> render uri <> "\n- Error: " <> T.pack (show e)
-			loop
-
-	let body_length = BL.length body
-	$logDebug $ "Downloaded: " <> arrow_text <> ", took " <> T.pack (show dt) <> ", byte length: " <> T.pack (show body_length)
-	
-	case cfg ^. downloaderWarnLeastSize of
-		Nothing -> pure ()
-		Just least_size -> when (body_length <= unrefine least_size) $ do
-			$logWarn $ "Downloaded content's size is too small: " <> T.pack (show body_length) <> " (<= " <> T.pack (show least_size) <> " bytes): " <> arrow_text <> ", the content may be invalid or not"
-
-	case cfg ^. downloaderWarnMostDuration of
-		Nothing -> pure ()
-		Just most_dt -> when (dt > most_dt) $ do
-			$logWarn $ "Downloading time took too long: " <> T.pack (show dt) <> " (>= " <> T.pack (show most_dt) <> "): " <> arrow_text
-
-	liftIO $ do
-		createDirectoryIfMissing True (takeDirectory dest_path)
-		BL.writeFile dest_path body
-	where
-	arrow_text = render uri <> " -> " <> T.pack dest_path
+instance HasDownloadOptions Config where
+	downloadOptions = cfgDownloadOptions
 
 data Download = Download URI FilePath
 	deriving (Show, Eq)
 
 runDownload :: (MonadCatch m, MonadLoggerIO m, HasManager cfg, HasDownloaderWarningOptions cfg) => cfg -> Download -> m ()
-runDownload cfg (Download url dest_path) = download cfg url dest_path
-
-fetchGallery :: (MonadCatch m, MonadLoggerIO m, HasOutputConfig cfg, HasManager cfg, HasDownloaderWarningOptions cfg) => cfg -> GalleryID -> S.Stream (Of Download) m ()
-fetchGallery cfg gid = do
-	gallery_api_url <- mkGalleryApiUrl gid
-	$logInfo $ "Fetching gallery: " <> render gallery_api_url
-	body_file_exist <- liftIO $ doesFileExist gallery_json_path
-	if body_file_exist then do
-		let arrow_text = render gallery_api_url <> " -> " <> T.pack gallery_json_path
+runDownload cfg (Download uri dest_path) = do
+	file_exist <- liftIO $ doesFileExist dest_path
+	if file_exist then do
 		$logDebug $ "Skipped downloading: " <> arrow_text <> ", file exists"
 	else do
-		download cfg gallery_api_url gallery_json_path
+		$logDebug $ "Downloading: " <> arrow_text <> "..."
+
+		(dt, body) <- withTimer $ fix $ \loop -> do
+			requestURI (cfg ^. manager) uri `catch` \(e :: SomeException) -> do
+				$logError $ "Redownloading, error when doing request: " <> render uri <> "\n- Error: " <> T.pack (show e)
+				loop
+
+		let body_length = BL.length body
+		$logDebug $ "Downloaded: " <> arrow_text <> ", took " <> T.pack (show dt) <> ", byte length: " <> T.pack (show body_length)
+
+		if_just (cfg ^. downloaderWarnLeastSize) $ \least_size -> do
+			when (body_length <= unrefine least_size) $ do
+				$logWarn $ "Downloaded content's size is too small: "
+					<> T.pack (show body_length)
+					<> " (<= "
+					<> T.pack (show least_size)
+					<> " bytes): "
+					<> arrow_text
+					<> ", the content may be invalid or not"
+
+		if_just (cfg ^. downloaderWarnMostDuration) $ \most_dt -> do
+			when (dt > most_dt) $ do
+				$logWarn $ "Downloading time took too long: "
+					<> T.pack (show dt)
+					<> " (>= "
+					<> T.pack (show most_dt)
+					<> "): "
+					<> arrow_text
+
+		liftIO $ do
+			createDirectoryIfMissing True (takeDirectory dest_path)
+			BL.writeFile dest_path body
+	where
+	if_just (Just v) m = m v
+	if_just Nothing _ = pure ()
+	arrow_text = render uri <> " -> " <> T.pack dest_path
+
+fetchGallery
+	::
+	( MonadCatch m
+	, MonadLoggerIO m
+	, HasOutputConfig cfg
+	, HasManager cfg
+	, HasDownloaderWarningOptions cfg
+	, HasDownloadOptions cfg
+	)
+	=> cfg
+	-> GalleryID
+	-> S.Stream (Of Download) m ()
+fetchGallery cfg gid = do
+	gallery_api_url <- mkGalleryApiUrl gid
+
+	runDownload cfg (Download gallery_api_url gallery_json_path)
 	body <- liftIO $ BL.readFile gallery_json_path
+
 	case eitherDecode @APIGalleryResult body of
 		Left err -> do
 			$logError $ "Unable to decode JSON from gallery: " <> T.pack (show $ unrefine gid) <> "\n- Error: " <> T.pack err <> "\n- Body: " <> T.pack (show body)
 			$logInfo $ "Redownloading " <> T.pack (show $ unrefine gid) <> "..."
 			liftIO $ removeFile gallery_json_path
 			fetchGallery cfg gid
+
 		Right (APIGalleryResultError _) -> do
 			$logWarn $ "Gallery is dead: " <> T.pack (show $ unrefine gid) <> ", skipping"
 			pure ()
+
 		Right (APIGalleryResultSuccess g) -> do
 			downloads <- extractDownloads g
 			S.each downloads
@@ -149,16 +176,27 @@ fetchGallery cfg gid = do
 						<> T.pack (show $ unrefine pageidx)
 						<> ", the image is probably invalid, skipping"
 					loop_rest
+
 				Right imgtype -> do
-					let page_thumb_path = (cfg ^. pageThumbPathMaker) (g ^. galleryId) (g ^. mediaId) pageidx imgtype
-					page_thumb_exist <- liftIO $ doesFileExist page_thumb_path
-					if page_thumb_exist then do
-						loop_rest
-					else do
-						page_thumb_url <- mkPageThumbUrl (g ^. mediaId) pageidx imgtype
-						cons (Download page_thumb_url page_thumb_path) <$> loop_rest
+					let downloads = catMaybes <$> sequenceA
+						[ mk_download
+							(cfg ^. downloadPageThumbnailFlag)
+							((cfg ^. pageThumbPathMaker) (g ^. galleryId) (g ^. mediaId) pageidx imgtype)
+							(mkPageThumbnailUrl (g ^. mediaId) pageidx imgtype)
+						, mk_download
+							(cfg ^. downloadPageImageFlag)
+							((cfg ^. pageImagePathMaker) (g ^. galleryId) (g ^. mediaId) pageidx imgtype)
+							(mkPageImageUrl (g ^. mediaId) pageidx imgtype)
+						]
+					liftA2 (<>) downloads loop_rest
 
 			where
+			mk_download my_flag path m_uri = do
+				if my_flag then do
+					uri <- m_uri
+					pure . Just $ Download uri path
+				else do
+					pure Nothing
 			loop_rest = do
 				pageidx' <- refineThrow $ unrefine pageidx + 1
 				loop pageidx' rest
@@ -169,9 +207,10 @@ runMainOptions (MainOptionsDownload {..}) = do
 	run_main_options_download galleryIdListing'MainOptionsDownload
 	where
 	mk_downloader_config mgr = Config
-		downloaderWarningOptions'MainOptionsDownload
 		mgr
+		downloaderWarningOptions'MainOptionsDownload
 		outputConfig'MainOptionsDownload
+		downloadOptions'MainOptionsDownload
 
 	run_main_options_download (GIDListingList {..}) = do
 		mgr <- newTlsManager

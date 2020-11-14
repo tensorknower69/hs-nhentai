@@ -31,9 +31,6 @@ library:
   ghc-options:
     - -Wall
     - -Wno-tabs
-    - -threaded
-    - -rtsopts
-    - -with-rtsopts=-N
 
 executables:
   nhentai:

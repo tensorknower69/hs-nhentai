@@ -111,13 +111,21 @@ instance HasGalleryID APIGallery where
 instance HasMediaID APIGallery where
 	mediaId = apiMediaId
 
-mkPageThumbUrl :: MonadThrow m => MediaID -> PageIndex -> ImageType -> m URI
-mkPageThumbUrl mid pid image_type = do
-	mid_path_piece <- mkPathPiece (show (unrefine mid) ^. packed)
-	image_path_piece <- mkPathPiece (show (unrefine pid) ^. packed <> "t." <> (extension # image_type) ^. packed)
-	pure $ prefix & uriPath %~ (<> [mid_path_piece, image_path_piece])
+mkPageThumbnailUrl :: MonadThrow m => MediaID -> PageIndex -> ImageType -> m URI
+mkPageThumbnailUrl mid pid imgtype = do
+	mid_pp <- mkPathPiece (show (unrefine mid) ^. packed)
+	img_pp <- mkPathPiece (show (unrefine pid) ^. packed <> "t." <> (extension # imgtype) ^. packed)
+	pure $ prefix & uriPath %~ (<> [mid_pp, img_pp])
 	where
 	prefix = [uri|https://t.nhentai.net/galleries|]
+
+mkPageImageUrl :: MonadThrow m => MediaID -> PageIndex -> ImageType -> m URI
+mkPageImageUrl mid pid imgtype = do
+	mid_pp <- mkPathPiece (show (unrefine mid) ^. packed)
+	img_pp <- mkPathPiece (show (unrefine pid) ^. packed <> "." <> (extension # imgtype) ^. packed)
+	pure $ prefix & uriPath %~ (<> [mid_pp, img_pp])
+	where
+	prefix = [uri|https://i.nhentai.net/galleries|]
 
 intOrString :: (Read a, Integral a) => Value -> Parser a
 intOrString (Number i) = case floatingOrInteger @Float i of

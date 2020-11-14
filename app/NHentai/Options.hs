@@ -14,6 +14,31 @@ import Refined
 import System.FilePath
 import qualified Data.List.NonEmpty as L
 
+data DownloadOptions
+	= DownloadOptions
+		{ _downloadPageThumbnailFlag :: Bool
+		, _downloadPageImageFlag :: Bool
+		}
+	deriving (Show, Eq)
+
+makeClassy ''DownloadOptions
+
+downloadOptionsParser :: Parser DownloadOptions
+downloadOptionsParser = DownloadOptions
+	<$> download_page_thumbnail_parser
+	<*> download_page_image_parser
+	where
+	download_page_thumbnail_parser = switch
+		( short 'I'
+		<> long "download-page-thumbnail"
+		<> help "Download page thumbnails of a gallery"
+		)
+	download_page_image_parser = switch
+		( short 'i'
+		<> long "download-page-image"
+		<> help "Download page images of a gallery"
+		)
+
 data DownloaderWarningOptions
 	= DownloaderWarningOptions
 		{ _downloaderWarnLeastSize :: Maybe (Refined NonNegative Int64)
@@ -43,6 +68,7 @@ data OutputConfig
 	= OutputConfig
 		{ _jsonPathMaker :: GalleryID -> FilePath
 		, _pageThumbPathMaker :: GalleryID -> MediaID -> PageIndex -> ImageType -> FilePath
+		, _pageImagePathMaker :: GalleryID -> MediaID -> PageIndex -> ImageType -> FilePath
 		}
 
 makeClassy ''OutputConfig
@@ -50,7 +76,8 @@ makeClassy ''OutputConfig
 simpleOutputConfig :: (GalleryID -> FilePath) -> OutputConfig
 simpleOutputConfig prefix = OutputConfig
 	{ _jsonPathMaker = \gid -> prefix gid </> "gallery.json"
-	, _pageThumbPathMaker = \gid _ pid img_type -> prefix gid </> (show (unrefine pid) <> "." <> extension # img_type)
+	, _pageThumbPathMaker = \gid _ pid img_type -> prefix gid </> (show (unrefine pid) <> "t." <> extension # img_type)
+	, _pageImagePathMaker = \gid _ pid img_type -> prefix gid </> (show (unrefine pid) <> "." <> extension # img_type)
 	}
 
 -- |The directory name will be the same as the gallery id
@@ -112,6 +139,7 @@ data MainOptions
 		, numThreads'MainOptionsDownload :: Refined Positive Int
 		, outputConfig'MainOptionsDownload :: OutputConfig
 		, downloaderWarningOptions'MainOptionsDownload :: DownloaderWarningOptions
+		, downloadOptions'MainOptionsDownload :: DownloadOptions
 		}
 
 mainOptionsParser :: Parser MainOptions
@@ -129,6 +157,7 @@ mainOptionsParser = subparser
 		<*> num_threads_parser
 		<*> outputConfigParser
 		<*> downloaderWarningOptionsParser
+		<*> downloadOptionsParser
 		where
 		num_threads_parser = option refineReadM
 			( short 't'
