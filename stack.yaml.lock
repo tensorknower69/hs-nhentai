@@ -12,13 +12,6 @@ packages:
   original:
     hackage: refined-0.6.1@sha256:d5d713f0a2ad79d1c049d2d132fd8c2078b883b5ea3db876087eaec102843e57,2748
 - completed:
-    hackage: these-skinny-0.7.4@sha256:e29336a1a70a497e09d8266f8438efb30a807bafaa6b00f5a136f7493efb3160,1239
-    pantry-tree:
-      size: 262
-      sha256: 77f01554e40d8e910d00f95c35dde86df4f691e2955d9afdc16508114c4d1af2
-  original:
-    hackage: these-skinny-0.7.4@sha256:e29336a1a70a497e09d8266f8438efb30a807bafaa6b00f5a136f7493efb3160,1239
-- completed:
     hackage: streaming-concurrency-0.3.1.3@sha256:b46503a07a2877b71db70e10c10e33577c854904a14b3db0964a91d1d0933f79,2666
     pantry-tree:
       size: 525
@@ -32,9 +25,16 @@ packages:
       sha256: 2348c80d121b8aae5d6dc462ad0bab28856c3aa58d62f16da9a6da190c1f59cc
   original:
     hackage: streaming-with-0.2.2.1@sha256:f5f354c9d1ed9358bf91792a2804c897544b170b2891b6c0ee61120605f0327c,1280
+- completed:
+    hackage: these-skinny-0.7.4@sha256:e29336a1a70a497e09d8266f8438efb30a807bafaa6b00f5a136f7493efb3160,1239
+    pantry-tree:
+      size: 262
+      sha256: 77f01554e40d8e910d00f95c35dde86df4f691e2955d9afdc16508114c4d1af2
+  original:
+    hackage: these-skinny-0.7.4@sha256:e29336a1a70a497e09d8266f8438efb30a807bafaa6b00f5a136f7493efb3160,1239
 snapshots:
 - completed:
-    size: 532381
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/11.yaml
-    sha256: 1f43c4ad661a114a4f9dd4580988f30da1208d844c097714f5867c52a02e0aa1
-  original: lts-16.11
+    size: 532413
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/21.yaml
+    sha256: 7b5cac89352fa4a88606dc6cb250aee9291f21e2e988d464065f5aa51f5de33d
+  original: lts-16.21
