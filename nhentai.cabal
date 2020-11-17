@@ -5,11 +5,11 @@ cabal-version: 1.12
 -- see: https://github.com/sol/hpack
 
 name:           nhentai
-version:        0.1.0.0
+version:        0.1.0.1
 synopsis:       Scrape/download nhentai galleries and JSONs
 category:       Web
-homepage:       https://github.com/tensorknower69/hs-nhentai#readme
-bug-reports:    https://github.com/tensorknower69/hs-nhentai/issues
+homepage:       https://github.com/tensorknower69/nhentai#readme
+bug-reports:    https://github.com/tensorknower69/nhentai/issues
 author:         tensorknower69
 maintainer:     tensorknower69 <62006583+tensorknower69@users.noreply.github.com>
 copyright:      2020 tensorknower69
@@ -21,7 +21,7 @@ extra-source-files:
 
 source-repository head
   type: git
-  location: https://github.com/tensorknower69/hs-nhentai
+  location: https://github.com/tensorknower69/nhentai
 
 library
   exposed-modules:
