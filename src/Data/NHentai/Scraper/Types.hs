@@ -3,6 +3,19 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Data.NHentai.Scraper.Types
+( Pagination(..)
+, HasPagination(..)
+
+, ScraperGallery(..)
+, scraperGalleryId
+, scraperMediaId
+, dataTags
+, caption
+, coverImageSpec
+
+, galleryScraper
+, paginationScraper
+)
 where
 
 import Control.Applicative
@@ -42,9 +55,9 @@ paginationScraper = Pagination <$> current <*> (last' <|> current)
 
 data ScraperGallery
 	= ScraperGallery
-		{ _scraperGalleryId :: GalleryID
-		, _scraperMediaId :: MediaID
-		, _dataTags :: [TagID]
+		{ _scraperGalleryId :: GalleryId
+		, _scraperMediaId :: MediaId
+		, _dataTags :: [TagId]
 		, _caption :: T.Text
 		, _coverImageSpec :: ImageSpec
 		}
@@ -67,7 +80,6 @@ galleryScraper = do
 	pure $ ScraperGallery gid mid tag_ids capt (ImageSpec eitherimgtype w h)
 	where
 	extensionToImageTypeEither my_str = maybe (Left my_str) Right (my_str ^? extension)
-
 	scrapDimension name = (castString <$> attr name "img") >>= readZ >>= refineFail
 	extractDataTags x = traverse (readZ >=> refineFail) (splitOn " " (castString x))
 	-- e.g. /g/177013/

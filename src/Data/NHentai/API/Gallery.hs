@@ -4,7 +4,38 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Data.NHentai.API.Gallery where
+module Data.NHentai.API.Gallery
+( mkGalleryApiUri
+, mkPageThumbnailUri
+, mkPageImageUri
+
+, toTagType
+
+, APITag(..)
+, tagId
+, tagType
+, tagName
+, tagUri
+, tagCount
+
+, APIGallery(..)
+, apiGalleryId
+, apiMediaId
+, titleEnglish
+, titleJapanese
+, titlePretty
+, pages
+, cover
+, thumbnail
+, scanlator
+, uploadDate
+, tags
+, numPages
+, numFavorites
+
+, APIGalleryResult(..)
+)
+where
 
 import Control.Applicative
 import Control.Error
@@ -24,8 +55,8 @@ import Text.URI.Lens
 import Text.URI.QQ
 import qualified Data.Text as T
 
-mkGalleryApiUrl :: MonadThrow m => GalleryID -> m URI
-mkGalleryApiUrl gid = do
+mkGalleryApiUri :: MonadThrow m => GalleryId -> m URI
+mkGalleryApiUri gid = do
 	gid_path_piece <- mkPathPiece (show (unrefine gid) ^. packed)
 	pure $ prefix & uriPath %~ (<> [gid_path_piece])
 	where
@@ -67,10 +98,10 @@ instance FromJSON APIImageSpec where
 
 data APITag
 	= APITag
-		{ _tagId :: TagID
+		{ _tagId :: TagId
 		, _tagType :: TagType
 		, _tagName :: T.Text
-		, _tagUrl :: T.Text
+		, _tagUri :: URI
 		, _tagCount :: Refined NonNegative Int
 		}
 	deriving (Show, Eq)
@@ -82,13 +113,13 @@ instance FromJSON APITag where
 		<$> (v .: "id")
 		<*> (unAPITagType <$> v .: "type")
 		<*> v .: "name"
-		<*> v .: "url"
+		<*> (v .: "url" >>= mkURIFail)
 		<*> v .: "count"
 
 data APIGallery
 	= APIGallery
-		{ _apiGalleryId :: GalleryID
-		, _apiMediaId :: MediaID
+		{ _apiGalleryId :: GalleryId
+		, _apiMediaId :: MediaId
 		, _titleEnglish :: T.Text
 		, _titleJapanese :: Maybe T.Text
 		, _titlePretty :: T.Text
@@ -105,22 +136,22 @@ data APIGallery
 
 makeLenses ''APIGallery
 
-instance HasGalleryID APIGallery where
+instance HasGalleryId APIGallery where
 	galleryId = apiGalleryId
 
-instance HasMediaID APIGallery where
+instance HasMediaId APIGallery where
 	mediaId = apiMediaId
 
-mkPageThumbnailUrl :: MonadThrow m => MediaID -> PageIndex -> ImageType -> m URI
-mkPageThumbnailUrl mid pid imgtype = do
+mkPageThumbnailUri :: MonadThrow m => MediaId -> PageIndex -> ImageType -> m URI
+mkPageThumbnailUri mid pid imgtype = do
 	mid_pp <- mkPathPiece (show (unrefine mid) ^. packed)
 	img_pp <- mkPathPiece (show (unrefine pid) ^. packed <> "t." <> (extension # imgtype) ^. packed)
 	pure $ prefix & uriPath %~ (<> [mid_pp, img_pp])
 	where
 	prefix = [uri|https://t.nhentai.net/galleries|]
 
-mkPageImageUrl :: MonadThrow m => MediaID -> PageIndex -> ImageType -> m URI
-mkPageImageUrl mid pid imgtype = do
+mkPageImageUri :: MonadThrow m => MediaId -> PageIndex -> ImageType -> m URI
+mkPageImageUri mid pid imgtype = do
 	mid_pp <- mkPathPiece (show (unrefine mid) ^. packed)
 	img_pp <- mkPathPiece (show (unrefine pid) ^. packed <> "." <> (extension # imgtype) ^. packed)
 	pure $ prefix & uriPath %~ (<> [mid_pp, img_pp])

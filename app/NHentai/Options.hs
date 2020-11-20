@@ -29,27 +29,27 @@ downloadOptionsParser = DownloadOptions
 	<*> download_page_image_parser
 	where
 	download_page_thumbnail_parser = switch
-		( short 'I'
-		<> long "download-page-thumbnail"
+		( short 'T'
+		<> long "thumbnails"
 		<> help "Download page thumbnails of a gallery"
 		)
 	download_page_image_parser = switch
-		( short 'i'
-		<> long "download-page-image"
+		( short 'I'
+		<> long "images"
 		<> help "Download page images of a gallery"
 		)
 
-data DownloaderWarningOptions
-	= DownloaderWarningOptions
-		{ _downloaderWarnLeastSize :: Maybe (Refined NonNegative Int64)
-		, _downloaderWarnMostDuration :: Maybe POSIXTime
+data DownloadWarningOptions
+	= DownloadWarningOptions
+		{ _downloadWarnLeastSize :: Maybe (Refined NonNegative Int64)
+		, _downloadWarnMostDuration :: Maybe POSIXTime
 		}
 	deriving (Show, Eq)
 
-makeClassy ''DownloaderWarningOptions
+makeClassy ''DownloadWarningOptions
 
-downloaderWarningOptionsParser :: Parser DownloaderWarningOptions
-downloaderWarningOptionsParser = DownloaderWarningOptions
+downloadWarningOptionsParser :: Parser DownloadWarningOptions
+downloadWarningOptionsParser = DownloadWarningOptions
 	<$> ((Just <$> warn_least_size_parser) <|> pure Nothing)
 	<*> ((Just <$> warn_most_duration_parser) <|> pure Nothing)
 	where
@@ -66,14 +66,14 @@ downloaderWarningOptionsParser = DownloaderWarningOptions
 
 data OutputConfig
 	= OutputConfig
-		{ _jsonPathMaker :: GalleryID -> FilePath
-		, _pageThumbPathMaker :: GalleryID -> MediaID -> PageIndex -> ImageType -> FilePath
-		, _pageImagePathMaker :: GalleryID -> MediaID -> PageIndex -> ImageType -> FilePath
+		{ _jsonPathMaker :: GalleryId -> FilePath
+		, _pageThumbPathMaker :: GalleryId -> MediaId -> PageIndex -> ImageType -> FilePath
+		, _pageImagePathMaker :: GalleryId -> MediaId -> PageIndex -> ImageType -> FilePath
 		}
 
 makeClassy ''OutputConfig
 
-simpleOutputConfig :: (GalleryID -> FilePath) -> OutputConfig
+simpleOutputConfig :: (GalleryId -> FilePath) -> OutputConfig
 simpleOutputConfig prefix = OutputConfig
 	{ _jsonPathMaker = \gid -> prefix gid </> "gallery.json"
 	, _pageThumbPathMaker = \gid _ pid img_type -> prefix gid </> (show (unrefine pid) <> "t." <> extension # img_type)
@@ -110,14 +110,14 @@ outputConfigParser = (mk_conf2_parser <|> mk_conf1_parser) <*> output_dir_parser
 		<> help "Set the output directory"
 		)
 
-data GalleryIDListing
+data GIDListing
 	= GIDListingList
-		{ galleryIdList'GIDListingList :: L.NonEmpty GalleryID
+		{ galleryIdList'GIDListingList :: L.NonEmpty GalleryId
 		}
 	| GIDListingAll
 	deriving (Show, Eq)
 
-gidListingParser :: Parser GalleryIDListing
+gidListingParser :: Parser GIDListing
 gidListingParser = list_parser <|> all_parser
 	where
 	list_parser = GIDListingList
@@ -125,7 +125,7 @@ gidListingParser = list_parser <|> all_parser
 			( short 'g'
 			<> long "gallery-ids"
 			<> metavar "GALLERY_IDS"
-			<> help "List of ids fo galleries to be downloaded, e.g. 177013 or 177013,166013"
+			<> help "Set the list of gallery ids to be downloaded, e.g. '177013' or '177013,166013,2'"
 			)
 	all_parser = flag' GIDListingAll
 		( short 'a'
@@ -135,10 +135,10 @@ gidListingParser = list_parser <|> all_parser
 
 data MainOptions
 	= MainOptionsDownload
-		{ galleryIdListing'MainOptionsDownload :: GalleryIDListing
+		{ galleryIdListing'MainOptionsDownload :: GIDListing
 		, numThreads'MainOptionsDownload :: Refined Positive Int
 		, outputConfig'MainOptionsDownload :: OutputConfig
-		, downloaderWarningOptions'MainOptionsDownload :: DownloaderWarningOptions
+		, downloadWarningOptions'MainOptionsDownload :: DownloadWarningOptions
 		, downloadOptions'MainOptionsDownload :: DownloadOptions
 		}
 	| MainOptionsVersion
@@ -152,14 +152,14 @@ mainOptionsParser = subparser
 	main_download_command = command "download" $
 		info (main_download_option <**> helper)
 			( fullDesc
-			<> progDesc "Download thumbnails"
+			<> progDesc "Download pages of galleries"
 			)
 
 	main_download_option = MainOptionsDownload
 		<$> gidListingParser
 		<*> num_threads_parser
 		<*> outputConfigParser
-		<*> downloaderWarningOptionsParser
+		<*> downloadWarningOptionsParser
 		<*> downloadOptionsParser
 		where
 		num_threads_parser = option refineReadM
@@ -168,7 +168,7 @@ mainOptionsParser = subparser
 			<> metavar "NUM_THREADS"
 			<> value $$(refineTH @Positive @Int 1)
 			<> showDefault
-			<> help "Set the number of threads used in download images"
+			<> help "Set the number of threads used in downloading pages"
 			)
 
 	main_version_command = command "version" $ do

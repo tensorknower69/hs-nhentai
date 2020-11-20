@@ -6,7 +6,18 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Data.NHentai.Scraper.HomePage where
+module Data.NHentai.Scraper.HomePage
+( HomePage(..)
+, homePagePagination
+, popularGalleries
+, recentGalleries
+
+, homePageScraper
+, galleryScraper
+
+, mkHomePageUri
+)
+where
 
 import Control.Applicative
 import Control.Lens
@@ -49,8 +60,8 @@ homePageScraper = do
 	where
 	containerScraper index_classes = chroots ("div" @: ["class" @= intercalate " " (["container", "index-container"] <> index_classes)] // "div" @: [hasClass "gallery"]) galleryScraper
 
-mkHomePageUrl :: MonadThrow m => PageIndex -> m URI
-mkHomePageUrl page = do
+mkHomePageUri :: MonadThrow m => PageIndex -> m URI
+mkHomePageUri page = do
 	page_query_value <- mkQueryValue $ show (unrefine page) ^. packed
 	pure $ prefix & uriQuery .~ [ QueryParam [queryKey|page|] page_query_value ]
 	where

@@ -14,6 +14,8 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Logger
+import Data.Time
+import Data.Time.Format.ISO8601
 import Control.Monad.Trans.Control
 import Data.Aeson hiding (json)
 import Data.List
@@ -35,6 +37,7 @@ import System.FilePath
 import Text.HTML.Scalpel.Core
 import Text.URI
 import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Char8 as BSC
 import qualified Data.List.NonEmpty as L
 import qualified Data.Text as T
 import qualified Streaming.Concurrent as S
@@ -58,8 +61,7 @@ requestFromModernURI cfg uri = do
 			$logError $ "Redownloading, error when doing request: " <> render uri <> "\n- Error: " <> T.pack (show e)
 			loop
 
-		let status = responseStatus rep
-		if statusCode status == 503 then do
+		if responseStatus rep == serviceUnavailable503 then do
 			$logError $ "Redownloading, abnormal status code: 503, URI: " <> render uri
 			loop
 		else do
@@ -67,10 +69,10 @@ requestFromModernURI cfg uri = do
 
 	pure $ responseBody rep
 
-getLatestGalleryId :: (MonadLoggerIO m, MonadCatch m, MonadIO m, HasManager cfg) => cfg -> m GalleryID
+getLatestGalleryId :: (MonadLoggerIO m, MonadCatch m, MonadIO m, HasManager cfg) => cfg -> m GalleryId
 getLatestGalleryId cfg = do
-	url <- mkHomePageUrl $$(refineTH 1)
-	body <- requestFromModernURI cfg url
+	uri <- mkHomePageUri $$(refineTH 1)
+	body <- requestFromModernURI cfg uri
 	case scrapeStringLike body homePageScraper of
 		Nothing -> throwM $ ScalpelException body
 		Just home_page -> pure $ home_page ^. recentGalleries . head1 . scraperGalleryId
@@ -78,15 +80,15 @@ getLatestGalleryId cfg = do
 data Config
 	= Config
 		{ _cfgManager :: Manager
-		, _cfgDownloaderWarningOptions :: DownloaderWarningOptions
+		, _cfgDownloadWarningOptions :: DownloadWarningOptions
 		, _cfgOutputConfig :: OutputConfig
 		, _cfgDownloadOptions :: DownloadOptions
 		}
 
 makeLenses ''Config
 
-instance HasDownloaderWarningOptions Config where
-	downloaderWarningOptions = cfgDownloaderWarningOptions
+instance HasDownloadWarningOptions Config where
+	downloadWarningOptions = cfgDownloadWarningOptions
 
 instance HasOutputConfig Config where
 	outputConfig = cfgOutputConfig
@@ -100,7 +102,7 @@ instance HasDownloadOptions Config where
 data Download = Download URI FilePath
 	deriving (Show, Eq)
 
-runDownload :: (MonadCatch m, MonadLoggerIO m, HasManager cfg, HasDownloaderWarningOptions cfg) => cfg -> Download -> m ()
+runDownload :: (MonadCatch m, MonadLoggerIO m, HasManager cfg, HasDownloadWarningOptions cfg) => cfg -> Download -> m ()
 runDownload cfg (Download uri dest_path) = do
 	file_exist <- liftIO $ doesFileExist dest_path
 	if file_exist then do
@@ -113,7 +115,7 @@ runDownload cfg (Download uri dest_path) = do
 		let body_length = BL.length body
 		$logDebug $ "Downloaded: " <> arrow_text <> ", took " <> T.pack (show dt) <> ", byte length: " <> T.pack (show body_length)
 
-		if_just (cfg ^. downloaderWarnLeastSize) $ \least_size -> do
+		if_just (cfg ^. downloadWarnLeastSize) $ \least_size -> do
 			when (body_length <= unrefine least_size) $ do
 				$logWarn $ "Downloaded content's size is too small: "
 					<> T.pack (show body_length)
@@ -123,7 +125,7 @@ runDownload cfg (Download uri dest_path) = do
 					<> arrow_text
 					<> ", the content may be invalid or not"
 
-		if_just (cfg ^. downloaderWarnMostDuration) $ \most_dt -> do
+		if_just (cfg ^. downloadWarnMostDuration) $ \most_dt -> do
 			when (dt > most_dt) $ do
 				$logWarn $ "Downloading time took too long: "
 					<> T.pack (show dt)
@@ -146,16 +148,16 @@ fetchGallery
 	, MonadLoggerIO m
 	, HasOutputConfig cfg
 	, HasManager cfg
-	, HasDownloaderWarningOptions cfg
+	, HasDownloadWarningOptions cfg
 	, HasDownloadOptions cfg
 	)
 	=> cfg
-	-> GalleryID
+	-> GalleryId
 	-> S.Stream (Of Download) m ()
 fetchGallery cfg gid = do
-	gallery_api_url <- mkGalleryApiUrl gid
+	gallery_api_uri <- mkGalleryApiUri gid
 
-	runDownload cfg (Download gallery_api_url gallery_json_path)
+	runDownload cfg (Download gallery_api_uri gallery_json_path)
 	body <- liftIO $ BL.readFile gallery_json_path
 
 	case eitherDecode @APIGalleryResult body of
@@ -193,11 +195,11 @@ fetchGallery cfg gid = do
 						[ mk_download
 							(cfg ^. downloadPageThumbnailFlag)
 							((cfg ^. pageThumbPathMaker) (g ^. galleryId) (g ^. mediaId) pageidx imgtype)
-							(mkPageThumbnailUrl (g ^. mediaId) pageidx imgtype)
+							(mkPageThumbnailUri (g ^. mediaId) pageidx imgtype)
 						, mk_download
 							(cfg ^. downloadPageImageFlag)
 							((cfg ^. pageImagePathMaker) (g ^. galleryId) (g ^. mediaId) pageidx imgtype)
-							(mkPageImageUrl (g ^. mediaId) pageidx imgtype)
+							(mkPageImageUri (g ^. mediaId) pageidx imgtype)
 						]
 					liftA2 (<>) downloads loop_rest
 
@@ -217,26 +219,27 @@ runMainOptions :: (MonadMask m, MonadBaseControl IO m, MonadLoggerIO m) => MainO
 runMainOptions (MainOptionsDownload {..}) = do
 	run_main_options_download galleryIdListing'MainOptionsDownload
 	where
-	mk_downloader_config mgr = Config
+	mk_download_config mgr = Config
 		mgr
-		downloaderWarningOptions'MainOptionsDownload
+		downloadWarningOptions'MainOptionsDownload
 		outputConfig'MainOptionsDownload
 		downloadOptions'MainOptionsDownload
 
 	run_main_options_download (GIDListingList {..}) = do
 		mgr <- newTlsManager
-		let cfg = mk_downloader_config mgr
+		let cfg = mk_download_config mgr
 
 		download_gids cfg (galleryIdList'GIDListingList)
 
 	run_main_options_download GIDListingAll = do
 		mgr <- newTlsManager
-		let cfg = mk_downloader_config mgr
+		let cfg = mk_download_config mgr
 
 		unref_latest_gid <- unrefine <$> getLatestGalleryId mgr
 		$logInfo $ "Latest gallery: " <> T.pack (show $ unref_latest_gid)
 
-		(enumFromThenTo (unref_latest_gid) (unref_latest_gid - 1) 1 & traversed refineThrow & over mapped L.nonEmpty) >>= \case
+		let unref_gid_list = enumFromThenTo (unref_latest_gid) (unref_latest_gid - 1) 1
+		(unref_gid_list & traversed refineThrow & over mapped L.nonEmpty) >>= \case
 			Nothing -> throwM NHentaiNoGalleryException
 			Just gids -> download_gids cfg gids
 
@@ -244,10 +247,7 @@ runMainOptions (MainOptionsDownload {..}) = do
 		S.withStreamMapM
 			(unrefine numThreads'MainOptionsDownload)
 			(runDownload cfg)
-			(S.for
-				(S.each $ L.toList gids)
-				(fetchGallery cfg)
-			)
+			(S.for (S.each $ L.toList gids) (fetchGallery cfg))
 			S.effects
 
 		$logInfo $ "Done downloading all galleries: " <> T.pack (intercalate " " . fmap (show . unrefine) $ L.toList gids)
@@ -261,4 +261,9 @@ main = do
 		( fullDesc
 		<> progDesc "A scraper/downloader for nhentai.net"
 		)
-	runStdoutLoggingT . filterLogger (\_ level -> logLevel'ProgramOptions options <= level) $ runMainOptions (mainOptions'ProgramOptions options)
+	let filtered = filterLogger (\_ level -> logLevel'ProgramOptions options <= level) $ runMainOptions (mainOptions'ProgramOptions options)
+	runLoggingT filtered $ \loc source level logstr -> do
+		let lvl_name = toLogStr $ drop 5 (show level)
+		t <- getCurrentTime
+		let line = toLogStr (iso8601Show t) <> ": " <> lvl_name <> ": " <> toLogStr logstr <> "\n"
+		BSC.putStr $ fromLogStr line

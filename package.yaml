@@ -25,12 +25,14 @@ dependencies:
   - exceptions
   - scientific
   - aeson
+  - template-haskell
 
 library:
   source-dirs: src
   ghc-options:
     - -Wall
     - -Wno-tabs
+    - -Wno-name-shadowing
 
 executables:
   nhentai:
@@ -40,6 +42,8 @@ executables:
       - -Wall
       - -Wno-tabs
       - -Wno-orphans
+      - -Wno-unused-matches
+      - -Wno-name-shadowing
       - -threaded
       - -rtsopts
       - -with-rtsopts=-N

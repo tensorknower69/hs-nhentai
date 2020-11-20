@@ -2,7 +2,30 @@
 {-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
-module Data.NHentai.Types where
+module Data.NHentai.Types
+( PosterId
+, CommentId
+, GalleryId
+, TagId
+, MediaId
+, PageIndex
+
+, HasGalleryId(..)
+, HasMediaId(..)
+, HasTitle(..)
+
+, TagType(..)
+
+, ImageType(..)
+, extension
+, extensionChar
+
+, ImageSpec(..)
+, eitherImageType
+, width
+, height
+)
+where
 
 import Control.Lens
 import Data.Char
@@ -10,16 +33,16 @@ import Refined
 import qualified Data.Text as T
 
 -- |The ID of a poster/user.
-type PosterID = Refined Positive Int
+type PosterId = Refined Positive Int
 -- |The ID of a comment.
-type CommentID = Refined Positive Int
+type CommentId = Refined Positive Int
 -- |@https://nhentai.net/g/<gallery_id>@
-type GalleryID = Refined Positive Int
+type GalleryId = Refined Positive Int
 -- |The ID of a tag.
-type TagID = Refined Positive Int
+type TagId = Refined Positive Int
 -- |The media id of a gallery, see https://nhentai.net/api/gallery/177013, "media_id" field.
 -- I am not entirely sure why nhentai have this identifier.
-type MediaID = Refined Positive Int
+type MediaId = Refined Positive Int
 -- |Page number, starts from 1, like @https://nhentai.net/g/177013/<page_id>@
 type PageIndex = Refined Positive Int
 -- |The tag types, this is what you see next to the cover page of a gallery when viewing one.
@@ -55,7 +78,6 @@ extensionChar = prism' a b
 	b 'g' = Just GIF
 	b _ = Nothing
 
-
 data ImageSpec
 	-- ^An ImageSpec is basically an image's metadata. Mostly used for finding out the image type of an image.
 	= ImageSpec
@@ -67,11 +89,11 @@ data ImageSpec
 
 makeLenses ''ImageSpec
 
-class HasGalleryID a where
-	galleryId :: Lens' a GalleryID
+class HasGalleryId a where
+	galleryId :: Lens' a GalleryId
 
-class HasMediaID a where
-	mediaId :: Lens' a MediaID
+class HasMediaId a where
+	mediaId :: Lens' a MediaId
 
 class HasTitle a where
 	title :: Lens' a T.Text

@@ -35,7 +35,7 @@ library
       Paths_nhentai
   hs-source-dirs:
       src
-  ghc-options: -Wall -Wno-tabs
+  ghc-options: -Wall -Wno-tabs -Wno-name-shadowing
   build-depends:
       aeson
     , base >=4.7 && <5
@@ -48,6 +48,7 @@ library
     , scientific
     , split
     , tagsoup
+    , template-haskell
     , text
     , time
   default-language: Haskell2010
@@ -60,7 +61,7 @@ executable nhentai
       Paths_nhentai
   hs-source-dirs:
       app
-  ghc-options: -Wall -Wno-tabs -Wno-orphans -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -Wall -Wno-tabs -Wno-orphans -Wno-unused-matches -Wno-name-shadowing -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
     , base >=4.7 && <5
@@ -86,6 +87,7 @@ executable nhentai
     , streaming
     , streaming-concurrency
     , tagsoup
+    , template-haskell
     , text
     , time
   default-language: Haskell2010
@@ -116,6 +118,7 @@ test-suite nhentai-test
     , tagsoup
     , tasty
     , tasty-hunit
+    , template-haskell
     , text
     , time
   default-language: Haskell2010
