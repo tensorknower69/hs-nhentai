@@ -30,7 +30,7 @@ import Network.HTTP.Client.TLS
 import Network.HTTP.Types.Status
 import Options.Applicative
 import Refined
-import Streaming (Of)
+import Streaming (Stream, Of)
 import System.Directory
 import System.FilePath
 import System.IO
@@ -152,7 +152,7 @@ fetchGallery
 	)
 	=> cfg
 	-> GalleryId
-	-> S.Stream (Of Download) m ()
+	-> Stream (Of Download) m ()
 fetchGallery cfg gid = do
 	gallery_api_uri <- mkGalleryApiUri gid
 
@@ -170,49 +170,28 @@ fetchGallery cfg gid = do
 			$logWarn $ "Gallery is dead: " <> T.pack (show $ unrefine gid) <> ", skipping"
 			pure ()
 
-		Right (APIGalleryResultSuccess g) -> do
-			downloads <- extractDownloads g
-			S.each downloads
+		Right (APIGalleryResultSuccess g) -> extractDownloads g
 	where
 	gallery_json_path = (cfg ^. jsonPathMaker) gid
-	extractDownloads g = loop $$(refineTH 1) (g ^. pages)
+	extractDownloads g = S.for (enumerate $ S.each $ (g ^. pages)) phi
 		where
-		loop pageidx (imgspec : rest) = do
-			case imgspec ^. eitherImageType of
-				Left string -> do
-					$logWarn $ "Image type is "
-						<> T.pack (show string)
-						<> ": Gallery: "
-						<> T.pack (show $ unrefine $ g ^. galleryId)
-						<> ", page: "
-						<> T.pack (show $ unrefine pageidx)
-						<> ", the image is probably invalid, skipping"
-					loop_rest
+		phi (unref_pageidx :: Int, page) = lift (refineThrow unref_pageidx) >>= \pageidx -> case page ^. eitherImageType of
+			Left string -> do
+				lift $ $logWarn $ "Image type is "
+					<> T.pack (show string)
+					<> ": Gallery: "
+					<> T.pack (show $ unrefine $ g ^. galleryId)
+					<> ", page: "
+					<> T.pack (show $ unrefine pageidx)
+					<> ", the image is probably invalid, skipping"
+				pure ()
+			Right imgtype -> do
+				let f flag_lens mk_uri path_maker_lens = when (cfg ^. flag_lens) $ do
+					uri <- lift $ mk_uri (g ^. mediaId) pageidx imgtype
+					S.yield $ Download uri ((cfg ^. path_maker_lens) (g ^. galleryId) (g ^. mediaId) pageidx imgtype)
 
-				Right imgtype -> do
-					let downloads = catMaybes <$> sequenceA
-						[ mk_download
-							(cfg ^. downloadPageThumbnailFlag)
-							((cfg ^. pageThumbPathMaker) (g ^. galleryId) (g ^. mediaId) pageidx imgtype)
-							(mkPageThumbnailUri (g ^. mediaId) pageidx imgtype)
-						, mk_download
-							(cfg ^. downloadPageImageFlag)
-							((cfg ^. pageImagePathMaker) (g ^. galleryId) (g ^. mediaId) pageidx imgtype)
-							(mkPageImageUri (g ^. mediaId) pageidx imgtype)
-						]
-					liftA2 (<>) downloads loop_rest
-
-			where
-			mk_download my_flag path m_uri = do
-				if my_flag then do
-					uri <- m_uri
-					pure . Just $ Download uri path
-				else do
-					pure Nothing
-			loop_rest = do
-				pageidx' <- refineThrow $ unrefine pageidx + 1
-				loop pageidx' rest
-		loop _ [] = pure []
+				f downloadPageThumbnailFlag mkPageThumbnailUri pageThumbPathMaker
+				f downloadPageImageFlag mkPageImageUri pageImagePathMaker
 
 runMainOptions :: (MonadMask m, MonadBaseControl IO m, MonadLoggerIO m) => MainOptions -> m ()
 runMainOptions (MainOptionsDownload {..}) = do
@@ -232,8 +211,7 @@ runMainOptions (MainOptionsDownload {..}) = do
 			let gid_stream = S.mapMaybeM parse $ enumerate $ S.filter (not . null) $ S.fromHandle $ h
 			download_gids cfg gid_stream
 		where
-		enumerate = S.zip (S.enumFrom (1 :: Integer))
-		parse (line_at, string) = case readMay string of
+		parse (line_at :: Integer, string) = case readMay string of
 			Nothing -> do
 				$logWarn $ prefix <> "Unable to parse " <> T.pack (show string) <> " as a gallery id, skipping"
 				pure Nothing

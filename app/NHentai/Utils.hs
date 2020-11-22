@@ -14,10 +14,11 @@ import Data.Time.Clock.POSIX
 import Options.Applicative
 import Options.Applicative.Types
 import Refined
-import Streaming as S
+import Streaming (Stream, Of)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.List.NonEmpty as L
 import qualified Streaming.Internal as S
+import qualified Streaming.Prelude as S
 
 -- i honestly think that this is not a good idea
 instance (Functor f, MonadThrow m) => MonadThrow (Stream f m) where
@@ -87,3 +88,6 @@ withTimer f = do
 
 withTimer_ :: MonadIO m => m a -> m POSIXTime
 withTimer_ = fmap fst . withTimer
+
+enumerate :: (Integral i, Monad m) => Stream (Of a) m r -> Stream (Of (i, a)) m r
+enumerate = S.zip (S.enumFrom 1)
