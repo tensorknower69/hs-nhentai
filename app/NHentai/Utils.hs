@@ -84,3 +84,6 @@ withTimer f = do
 	a <- f
 	t' <- liftIO getPOSIXTime
 	pure (t' - t, a)
+
+withTimer_ :: MonadIO m => m a -> m POSIXTime
+withTimer_ = fmap fst . withTimer

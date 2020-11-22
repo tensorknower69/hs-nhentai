@@ -223,7 +223,8 @@ runMainOptions (MainOptionsDownload {..}) = do
 		, _cfgDownloadOptions = downloadOptions'MainOptionsDownload
 		, _cfgDownloadWarningOptions = downloadWarningOptions'MainOptionsDownload
 		}
-	run cfg gidInputOption'MainOptionsDownload
+	dt <- withTimer_ $ run cfg gidInputOption'MainOptionsDownload
+	$logInfo $ "Done downloading all galleries! Time taken: " <> T.pack (show dt)
 	where
 	run cfg (GidInputOptionSingle gid) = download_gids cfg (S.yield gid)
 	run cfg (GidInputOptionListFile file_path) = do
@@ -249,7 +250,6 @@ runMainOptions (MainOptionsDownload {..}) = do
 			(runDownload cfg)
 			(S.for gid_stream (fetchGallery cfg))
 			S.effects
-		$logInfo $ "Done downloading all galleries!"
 
 runMainOptions MainOptionsVersion = liftIO $ putStrLn "0.1.1.1"
 runMainOptions MainOptionsLatestGid = do
