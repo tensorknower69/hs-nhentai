@@ -6,7 +6,7 @@ license: MIT
 maintainer: "tensorknower69 <62006583+tensorknower69@users.noreply.github.com>"
 name: "nhentai"
 synopsis: "Scrape/download nhentai galleries and JSONs"
-version: 0.1.1.1
+version: 0.1.2.0
 
 extra-source-files:
   - README.md
