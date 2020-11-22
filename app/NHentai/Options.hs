@@ -169,7 +169,7 @@ mainOptionsParser = subparser
 		where
 		num_threads_parser = option refineReadM
 			( short 't'
-			<> long "num-threads"
+			<> long "threads"
 			<> metavar "NUM_THREADS"
 			<> value $$(refineTH @Positive @Int 1)
 			<> showDefault
