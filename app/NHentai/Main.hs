@@ -255,6 +255,11 @@ runMainOptions (MainOptionsDownload {..}) = do
 runMainOptions MainOptionsVersion = do
 	liftIO $ putStrLn "0.1.0.1"
 
+runMainOptions MainOptionsLatestGid = do
+	mgr <- newTlsManager
+	latest_gid <- getLatestGalleryId mgr
+	liftIO $ putStrLn $ show (unrefine latest_gid)
+
 main :: IO ()
 main = do
 	options <- execParser $ info (programOptionsParser <**> helper)

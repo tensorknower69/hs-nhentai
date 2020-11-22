@@ -142,11 +142,13 @@ data MainOptions
 		, downloadOptions'MainOptionsDownload :: DownloadOptions
 		}
 	| MainOptionsVersion
+	| MainOptionsLatestGid
 
 mainOptionsParser :: Parser MainOptions
 mainOptionsParser = subparser
 	( main_download_command
 	<> main_version_command
+	<> main_latest_gid_command
 	)
 	where
 	main_download_command = command "download" $
@@ -175,6 +177,12 @@ mainOptionsParser = subparser
 		info (pure MainOptionsVersion <**> helper)
 			( fullDesc
 			<> progDesc "Print version"
+			)
+
+	main_latest_gid_command = command "latest-gid" $ do
+		info (pure MainOptionsLatestGid <**> helper)
+			( fullDesc
+			<> progDesc "Print the latest gallery's id"
 			)
 
 data ProgramOptions
