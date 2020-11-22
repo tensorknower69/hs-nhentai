@@ -46,10 +46,6 @@ data AesonParseException = AesonParseException String
 	deriving (Show, Eq)
 instance Exception AesonParseException
 
-data NHentaiException = NHentaiNoGalleryException
-	deriving (Show, Eq)
-instance Exception NHentaiException
-
 data ReadException = ReadException { input'ReadException :: String, part'ReadException :: String }
 	deriving (Show, Eq)
 instance Exception ReadException

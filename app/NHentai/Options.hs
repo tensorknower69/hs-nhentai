@@ -12,7 +12,6 @@ import NHentai.Utils
 import Options.Applicative
 import Refined
 import System.FilePath
-import qualified Data.List.NonEmpty as L
 
 data DownloadOptions
 	= DownloadOptions
@@ -110,32 +109,36 @@ outputConfigParser = (mk_conf2_parser <|> mk_conf1_parser) <*> output_dir_parser
 		<> help "Set the output directory"
 		)
 
-data GIDListing
-	= GIDListingList
-		{ galleryIdList'GIDListingList :: L.NonEmpty GalleryId
+data GidInputOption
+	= GidInputOptionSingle
+		{ galleryId'GidInputOptionSingle :: GalleryId
 		}
-	| GIDListingAll
+	| GidInputOptionListFile
+		{ filePath'GidInputOptionListFile :: FilePath
+		}
 	deriving (Show, Eq)
 
-gidListingParser :: Parser GIDListing
-gidListingParser = list_parser <|> all_parser
+gidInputOptionParser :: Parser GidInputOption
+gidInputOptionParser = single_parser <|> list_file_parser
 	where
-	list_parser = GIDListingList
-		<$> option (nonEmptyReadM refineReadM)
+	single_parser = GidInputOptionSingle
+		<$> option refineReadM
 			( short 'g'
-			<> long "gallery-ids"
-			<> metavar "GALLERY_IDS"
-			<> help "Set the list of gallery ids to be downloaded, e.g. '177013' or '177013,166013,2'"
+			<> long "gallery"
+			<> metavar "GALLERY_ID"
+			<> help "Which gallery to download"
 			)
-	all_parser = flag' GIDListingAll
-		( short 'a'
-		<> long "all"
-		<> help "Download galleries from the latest one to the beginning"
-		)
+	list_file_parser = GidInputOptionListFile
+		<$> strOption
+			( short 'f'
+			<> long "list-file"
+			<> metavar "FILE_PATH"
+			<> help "File path containing the list of galleries to be downloaded, skips invalid lines, can have infinite lines"
+			)
 
 data MainOptions
 	= MainOptionsDownload
-		{ galleryIdListing'MainOptionsDownload :: GIDListing
+		{ gidInputOption'MainOptionsDownload :: GidInputOption
 		, numThreads'MainOptionsDownload :: Refined Positive Int
 		, outputConfig'MainOptionsDownload :: OutputConfig
 		, downloadWarningOptions'MainOptionsDownload :: DownloadWarningOptions
@@ -158,7 +161,7 @@ mainOptionsParser = subparser
 			)
 
 	main_download_option = MainOptionsDownload
-		<$> gidListingParser
+		<$> gidInputOptionParser
 		<*> num_threads_parser
 		<*> outputConfigParser
 		<*> downloadWarningOptionsParser

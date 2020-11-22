@@ -10,14 +10,13 @@
 
 module Main where
 
+import Control.Error
 import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Logger
 import Control.Monad.Trans.Control
 import Data.Aeson hiding (json)
-import Data.List
-import Data.Maybe
 import Data.NHentai.API.Gallery
 import Data.NHentai.Scraper.HomePage
 import Data.NHentai.Scraper.Types
@@ -39,7 +38,6 @@ import Text.HTML.Scalpel.Core
 import Text.URI
 import qualified Data.ByteString.Char8 as BSC
 import qualified Data.ByteString.Lazy as BL
-import qualified Data.List.NonEmpty as L
 import qualified Data.Text as T
 import qualified Streaming.Concurrent as S
 import qualified Streaming.Prelude as S
@@ -218,44 +216,42 @@ fetchGallery cfg gid = do
 
 runMainOptions :: (MonadMask m, MonadBaseControl IO m, MonadLoggerIO m) => MainOptions -> m ()
 runMainOptions (MainOptionsDownload {..}) = do
-	run_main_options_download galleryIdListing'MainOptionsDownload
+	mgr <- newTlsManager
+	let cfg = Config
+		{ _cfgManager = mgr
+		, _cfgOutputConfig = outputConfig'MainOptionsDownload
+		, _cfgDownloadOptions = downloadOptions'MainOptionsDownload
+		, _cfgDownloadWarningOptions = downloadWarningOptions'MainOptionsDownload
+		}
+	run cfg gidInputOption'MainOptionsDownload
 	where
-	mk_download_config mgr = Config
-		mgr
-		downloadWarningOptions'MainOptionsDownload
-		outputConfig'MainOptionsDownload
-		downloadOptions'MainOptionsDownload
-
-	run_main_options_download (GIDListingList {..}) = do
-		mgr <- newTlsManager
-		let cfg = mk_download_config mgr
-
-		download_gids cfg (galleryIdList'GIDListingList)
-
-	run_main_options_download GIDListingAll = do
-		mgr <- newTlsManager
-		let cfg = mk_download_config mgr
-
-		unref_latest_gid <- unrefine <$> getLatestGalleryId mgr
-		$logInfo $ "Latest gallery: " <> T.pack (show $ unref_latest_gid)
-
-		let unref_gid_list = enumFromThenTo (unref_latest_gid) (unref_latest_gid - 1) 1
-		(unref_gid_list & traversed refineThrow & over mapped L.nonEmpty) >>= \case
-			Nothing -> throwM NHentaiNoGalleryException
-			Just gids -> download_gids cfg gids
-
-	download_gids cfg gids = do
+	run cfg (GidInputOptionSingle gid) = download_gids cfg (S.yield gid)
+	run cfg (GidInputOptionListFile file_path) = do
+		bracket (liftIO $ openFile file_path ReadMode) (liftIO . hClose) $ \h -> do
+			let gid_stream = S.mapMaybeM parse $ enumerate $ S.filter (not . null) $ S.fromHandle $ h
+			download_gids cfg gid_stream
+		where
+		enumerate = S.zip (S.enumFrom (1 :: Integer))
+		parse (line_at, string) = case readMay string of
+			Nothing -> do
+				$logWarn $ prefix <> "Unable to parse " <> T.pack (show string) <> " as a gallery id, skipping"
+				pure Nothing
+			Just unref_gid -> case refineThrow unref_gid of
+				Left err -> do
+					$logError $ prefix <> "Unable to refine " <> T.pack (show unref_gid) <> " to a gallery id, skipping. Error: " <> T.pack (show err)
+					pure Nothing
+				Right gid -> pure $ Just (gid :: GalleryId)
+			where
+			prefix = "In " <> T.pack file_path <> ":" <> T.pack (show line_at) <> ": "
+	download_gids cfg gid_stream = do
 		S.withStreamMapM
 			(unrefine numThreads'MainOptionsDownload)
 			(runDownload cfg)
-			(S.for (S.each $ L.toList gids) (fetchGallery cfg))
+			(S.for gid_stream (fetchGallery cfg))
 			S.effects
+		$logInfo $ "Done downloading all galleries!"
 
-		$logInfo $ "Done downloading all galleries: " <> T.pack (intercalate " " . fmap (show . unrefine) $ L.toList gids)
-
-runMainOptions MainOptionsVersion = do
-	liftIO $ putStrLn "0.1.1.1"
-
+runMainOptions MainOptionsVersion = liftIO $ putStrLn "0.1.1.1"
 runMainOptions MainOptionsLatestGid = do
 	mgr <- newTlsManager
 	latest_gid <- getLatestGalleryId mgr
