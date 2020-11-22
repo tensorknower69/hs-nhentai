@@ -1,3 +1,8 @@
+## 0.1.3.0
+
+- make it so that if option `-l,--log-level` is not specified, logging will be disabled
+- some code refactory
+
 ## 0.1.2.0
 
 - rename download option `--num-threads` to `--threads`
