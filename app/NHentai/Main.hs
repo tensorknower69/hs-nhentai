@@ -254,7 +254,7 @@ runMainOptions (MainOptionsDownload {..}) = do
 		$logInfo $ "Done downloading all galleries: " <> T.pack (intercalate " " . fmap (show . unrefine) $ L.toList gids)
 
 runMainOptions MainOptionsVersion = do
-	liftIO $ putStrLn "0.1.1.0"
+	liftIO $ putStrLn "0.1.1.1"
 
 runMainOptions MainOptionsLatestGid = do
 	mgr <- newTlsManager

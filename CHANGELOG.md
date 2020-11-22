@@ -1,3 +1,7 @@
+## 0.1.1.1
+
+- forgot to update cabal file
+
 ## 0.1.1.0
 
 - add `latest-gid` command
