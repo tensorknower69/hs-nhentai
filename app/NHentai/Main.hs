@@ -229,7 +229,7 @@ runMainOptions (MainOptionsDownload {..}) = do
 			(S.for gid_stream (fetchGallery cfg))
 			S.effects
 
-runMainOptions MainOptionsVersion = liftIO $ putStrLn "0.1.2.0"
+runMainOptions MainOptionsVersion = liftIO $ putStrLn "0.1.3.0"
 runMainOptions MainOptionsLatestGid = do
 	mgr <- newTlsManager
 	latest_gid <- getLatestGalleryId mgr
