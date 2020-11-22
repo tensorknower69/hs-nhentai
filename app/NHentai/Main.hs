@@ -14,8 +14,6 @@ import Control.Lens
 import Control.Monad.Catch
 import Control.Monad.Except
 import Control.Monad.Logger
-import Data.Time
-import Data.Time.Format.ISO8601
 import Control.Monad.Trans.Control
 import Data.Aeson hiding (json)
 import Data.List
@@ -24,6 +22,8 @@ import Data.NHentai.API.Gallery
 import Data.NHentai.Scraper.HomePage
 import Data.NHentai.Scraper.Types
 import Data.NHentai.Types
+import Data.Time
+import Data.Time.Format.ISO8601
 import NHentai.Options
 import NHentai.Utils
 import Network.HTTP.Client
@@ -34,10 +34,11 @@ import Refined
 import Streaming (Of)
 import System.Directory
 import System.FilePath
+import System.IO
 import Text.HTML.Scalpel.Core
 import Text.URI
-import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Char8 as BSC
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.List.NonEmpty as L
 import qualified Data.Text as T
 import qualified Streaming.Concurrent as S
@@ -271,4 +272,4 @@ main = do
 		let lvl_name = toLogStr $ drop 5 (show level)
 		t <- getCurrentTime
 		let line = toLogStr (iso8601Show t) <> ": " <> lvl_name <> ": " <> toLogStr logstr <> "\n"
-		BSC.putStr $ fromLogStr line
+		BSC.hPutStr stderr $ fromLogStr line
