@@ -190,19 +190,19 @@ mainOptionsParser = subparser
 
 data ProgramOptions
 	= ProgramOptions
-		{ logLevel'ProgramOptions :: LogLevel
+		{ maybeLogLevel'ProgramOptions :: Maybe LogLevel
 		, mainOptions'ProgramOptions :: MainOptions
 		}
 
 programOptionsParser :: Parser ProgramOptions
-programOptionsParser = ProgramOptions <$> log_level_parser <*> mainOptionsParser
+programOptionsParser = ProgramOptions <$> maybe_log_level_parser <*> mainOptionsParser
 	where
-	log_level_parser :: Parser LogLevel
-	log_level_parser = option logLevelReadM
-		( short 'l'
-		<> long "log-level"
-		<> metavar "LOG_LEVEL"
-		<> value LevelDebug
-		<> showDefault
-		<> help "Set log level. Prints possible inputs on error."
-		)
+	maybe_log_level_parser :: Parser (Maybe LogLevel)
+	maybe_log_level_parser = (Just <$> f) <|> pure Nothing
+		where
+		f = option logLevelReadM
+			( short 'l'
+			<> long "log-level"
+			<> metavar "LOG_LEVEL"
+			<> help "Set log level (default disables logging). Prints possible inputs on error"
+			)

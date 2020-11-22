@@ -241,7 +241,12 @@ main = do
 		( fullDesc
 		<> progDesc "A scraper/downloader for nhentai.net"
 		)
-	let filtered = filterLogger (\_ level -> logLevel'ProgramOptions options <= level) $ runMainOptions (mainOptions'ProgramOptions options)
+	let filtered = filterLogger
+		(\_ level -> case maybeLogLevel'ProgramOptions options of
+			Nothing -> False
+			Just level' -> level' <= level
+		)
+		$ runMainOptions (mainOptions'ProgramOptions options)
 	runLoggingT filtered $ \loc source level logstr -> do
 		let lvl_name = toLogStr $ drop 5 (show level)
 		t <- getCurrentTime
