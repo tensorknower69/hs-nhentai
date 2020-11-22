@@ -1,8 +1,18 @@
+## 0.1.2.0
+
+- rename download option `--num-threads` to `--threads`
+- remove download option `-a`
+- download option `-g` can no longer accept comma-seperated lists, only a single element is allowed
+- add download option `-f` for gallery list file input
+- add timing for `download` command
+
 ## 0.1.1.1
 
 - forgot to update cabal file
 
 ## 0.1.1.0
+
+CHANGELOG.md added
 
 - add `latest-gid` command
 - use URI instead of Text
@@ -34,7 +44,7 @@ GitHub project got renamed.
 
 Initial version.
 
-CHANGELOG.md didn't exist yet.
+CHANGELOG.md doesn't exist until `0.1.1.0`.
 
 - add test
 	- use tasty
@@ -51,7 +61,7 @@ CHANGELOG.md didn't exist yet.
 	- add download num threads option `-t`
 	- add download page thumbnails option `-I`
 	- add download page images option `-i`
-	- add download gallery ids selection `-g` (is comma-seperable)
+	- add download gallery ids selection `-g` (can be comma-seperated)
 	- add download all option `-a`
 	- add download dest output dir option `-o`
 	- add download second output dir format option `-2`
