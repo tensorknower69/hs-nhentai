@@ -1,6 +1,10 @@
 # nhentai
 Scraping/downloading [nhentai](https://nhentai.net) galleries and JSONs.
 
+## TODO
+
+- add browsing/searching functionality
+
 ## Usage
 
 ### Help
