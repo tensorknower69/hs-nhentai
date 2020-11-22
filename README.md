@@ -1,4 +1,4 @@
-# hs-nhentai
+# nhentai
 Scraping/downloading [nhentai](https://nhentai.net) galleries and JSONs.
 
 ## Usage
