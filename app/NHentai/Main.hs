@@ -72,10 +72,10 @@ requestFromModernURI cfg uri = do
 
   pure $ responseBody rep
 
-getLatestGalleryId :: (MonadLoggerIO m, MonadCatch m, MonadIO m, HasManager cfg) => cfg -> m GalleryId
-getLatestGalleryId cfg = do
+getLatestGalleryId :: (MonadLoggerIO m, MonadCatch m, MonadIO m) => Manager -> m GalleryId
+getLatestGalleryId manager = do
   uri <- mkHomePageUri $$(refineTH 1)
-  body <- requestFromModernURI cfg uri
+  body <- requestFromModernURI manager uri
   case scrapeStringLike body homePageScraper of
     Nothing -> throwM $ ScalpelException body
     Just home_page -> pure $ home_page ^. recentGalleries . head1 . scraperGalleryId
@@ -113,18 +113,18 @@ runDownload cfg (Download uri dest_path) = do
   else do
     $logDebug $ "downloading " <> download_info
 
-    (delta_time, body) <- withTimer $ requestFromModernURI (cfg ^. manager) uri
+    (duration, body) <- withTimer $ requestFromModernURI (cfg ^. manager) uri
 
     let body_length = BL.length body
-    $logInfo $ "downloaded " <> download_info <> ": took " <> T.pack (show delta_time) <> ", size: " <> byteSizeToText body_length
+    $logInfo $ "downloaded " <> download_info <> ": took " <> T.pack (show duration) <> ", size: " <> byteSizeToText body_length
 
     if_just (cfg ^. downloadWarnMinSize) $ \least_size -> do
       when (body_length <= unrefine least_size) $ do
         $logWarn $ "downloaded " <> download_info <> ", but: downloaded content's size (" <> byteSizeToText body_length <> ") is too small (<= " <> byteSizeToText (unrefine least_size) <> "), the content may be invalid"
 
     if_just (cfg ^. downloadWarnMinDuration) $ \min_duration -> do
-      when (delta_time > min_duration) $ do
-        $logWarn $ "downloaded " <> download_info <> ", but: download time (" <> T.pack (show delta_time) <> ") is too long (>= " <> T.pack (show min_duration) <> ")"
+      when (duration > min_duration) $ do
+        $logWarn $ "downloaded " <> download_info <> ", but: download time (" <> T.pack (show duration) <> ") is too long (>= " <> T.pack (show min_duration) <> ")"
 
     liftIO $ do
       createDirectoryIfMissing True (takeDirectory dest_path)
@@ -197,8 +197,8 @@ runMainOptions (MainOptionsDownload {..}) = do
       , _cfgDownloadOptions = downloadOptions'MainOptionsDownload
       , _cfgDownloadWarningOptions = downloadWarningOptions'MainOptionsDownload
       }
-  dt <- withTimer_ $ run cfg gidInputOption'MainOptionsDownload
-  $logInfo $ "done downloading all galleries, time taken: " <> T.pack (show dt)
+  duration <- withTimer_ $ run cfg gidInputOption'MainOptionsDownload
+  $logInfo $ "done downloading all galleries, time taken: " <> T.pack (show duration)
   where
   run cfg (GidInputOptionSingle gid) = download_gids cfg (S.yield gid)
   run cfg (GidInputOptionListFile file_path) = do
@@ -208,15 +208,16 @@ runMainOptions (MainOptionsDownload {..}) = do
     where
     parse (line_at :: Integer, string) = case readMay string of
       Nothing -> do
-        $logWarn $ prefix <> "Unable to parse " <> T.pack (show string) <> " as a gallery id, skipping"
+        $logWarn $ prefix <> " unable to parse " <> T.pack (show string) <> " as a gallery id, skipping"
         pure Nothing
       Just unref_gid -> case refineThrow unref_gid of
         Left err -> do
-          $logError $ prefix <> "Unable to refine " <> T.pack (show unref_gid) <> " to a gallery id, skipping. Error: " <> T.pack (show err)
+          $logError $ prefix <> " unable to refine " <> T.pack (show unref_gid) <> " into a gallery id: " <> T.pack (show err)
           pure Nothing
         Right gid -> pure $ Just (gid :: GalleryId)
       where
-      prefix = "In " <> T.pack file_path <> ":" <> T.pack (show line_at) <> ": "
+      prefix = "at " <> T.pack file_path <> ":" <> T.pack (show line_at) <> ":"
+
   download_gids cfg gid_stream = do
     S.withStreamMapM
       (unrefine numThreads'MainOptionsDownload)
@@ -224,10 +225,11 @@ runMainOptions (MainOptionsDownload {..}) = do
       (S.for gid_stream (fetchGallery cfg))
       S.effects
 
-runMainOptions MainOptionsVersion = liftIO $ putStrLn (showVersion version)
+runMainOptions MainOptionsVersion = do
+  liftIO $ putStrLn (showVersion version)
 runMainOptions MainOptionsLatestGid = do
-  mgr <- newTlsManager
-  latest_gid <- getLatestGalleryId mgr
+  manager <- newTlsManager
+  latest_gid <- getLatestGalleryId manager
   liftIO $ putStrLn $ show (unrefine latest_gid)
 
 main :: IO ()
