@@ -30,12 +30,12 @@ downloadOptionsParser = DownloadOptions
   download_page_thumbnail_parser = switch
     ( short 'T'
     <> long "thumbnails"
-    <> help "Download page thumbnails of a gallery"
+    <> help "Download page thumbnails"
     )
   download_page_image_parser = switch
     ( short 'I'
     <> long "images"
-    <> help "Download page images of a gallery"
+    <> help "Download page images"
     )
 
 data DownloadWarningOptions
@@ -53,14 +53,14 @@ downloadWarningOptionsParser = DownloadWarningOptions
   <*> ((Just <$> warn_most_duration_parser) <|> pure Nothing)
   where
   warn_least_size_parser = option refineReadM
-    ( long "warn-least-size"
+    ( long "warn-min-size"
     <> metavar "NUM_BYTES"
-    <> help "Set downloaded content's size threshold before warning"
+    <> help "Set size of content warning threshold"
     )
   warn_most_duration_parser = fmap (realToFrac . unrefine) $ option (refineReadM @Double @NonNegative)
-    ( long "warn-most-duration"
+    ( long "warn-min-duration"
     <> metavar "DURATION"
-    <> help "Set download duration threshold before warning"
+    <> help "Set download duration warning threshold"
     )
 
 data OutputConfig
@@ -96,14 +96,13 @@ outputConfigParser = (mk_conf2_parser <|> mk_conf1_parser) <*> output_dir_parser
   where
   mk_conf1_parser = pure mkDefaultOutputConfig
   mk_conf2_parser = flag' mkDefaultOutputConfig2
-    ( short '2'
-    <> long "output-config-2"
-    <> help "Use another directory format, instead of gid -> dest_dir/<gid>/, the directory format will become gid -> dest_dir/<div gid 1000>/<gid>"
+    ( long "group-1000"
+    <> help "Use another directory format, instead of \\gid -> dest_dir/<gid>/, the directory format will become \\gid -> dest_dir/<gid // 1000>/<gid>. Effectively grouping 1000 galleries into a each directory"
     )
   output_dir_parser = strOption
     ( short 'o'
-    <> long "output-dir"
-    <> metavar "OUTPUT_DIR"
+    <> long "output"
+    <> metavar "FILE"
     <> value "galleries"
     <> showDefault
     <> help "Set the output directory"
@@ -125,15 +124,15 @@ gidInputOptionParser = single_parser <|> list_file_parser
     <$> option refineReadM
       ( short 'g'
       <> long "gallery"
-      <> metavar "GALLERY_ID"
-      <> help "Which gallery to download"
+      <> metavar "NUM"
+      <> help "Specify a single gallery id"
       )
   list_file_parser = GidInputOptionListFile
     <$> strOption
       ( short 'f'
-      <> long "list-file"
-      <> metavar "FILE_PATH"
-      <> help "File path containing the list of galleries to be downloaded, skips invalid lines, can have infinite lines"
+      <> long "include-from"
+      <> metavar "FILE"
+      <> help "Reading gallery ids from specified file. Skips invalid lines"
       )
 
 data MainOptions
@@ -157,7 +156,7 @@ mainOptionsParser = subparser
   main_download_command = command "download" $
     info (main_download_option <**> helper)
       ( fullDesc
-      <> progDesc "Download pages of galleries"
+      <> progDesc "Download galleries"
       )
 
   main_download_option = MainOptionsDownload
@@ -170,10 +169,10 @@ mainOptionsParser = subparser
     num_threads_parser = option refineReadM
       ( short 't'
       <> long "threads"
-      <> metavar "NUM_THREADS"
+      <> metavar "NUM"
       <> value $$(refineTH @Positive @Int 1)
       <> showDefault
-      <> help "Set the number of threads used in downloading pages"
+      <> help "Set the number of threads used in downloading pages concurrently"
       )
 
   main_version_command = command "version" $ do
@@ -203,6 +202,6 @@ programOptionsParser = ProgramOptions <$> maybe_log_level_parser <*> mainOptions
     f = option logLevelReadM
       ( short 'l'
       <> long "log-level"
-      <> metavar "LOG_LEVEL"
+      <> metavar "LEVEL"
       <> help "Set log level (default disables logging). Prints possible inputs on error"
       )

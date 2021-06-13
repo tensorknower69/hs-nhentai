@@ -11,9 +11,9 @@ $ file 177013/gallery.json
 177013/gallery.json: JSON data
 ```
 
-Download page images (`-I`) and page thumbnails (`-T`) starting from the latest gallery to the first gallery (`-f <list-file>`) to `galleries/` using an alternative output format (`-2`) with 100 threads and debug logging:
+Download page images (`-I`) and page thumbnails (`-T`) starting from the latest gallery to the first gallery (`-f <list-file>`) to `galleries/` using an alternative output format (`--group-1000`) with 100 threads and debug logging:
 ```bash
-$ nhentai -l debug download -I -T -o galleries/ -t 100 -2 -f <(seq `nhentai latest-gid` -1 1)
+$ nhentai -l debug download -I -T -o galleries/ -t 100 --group-1000 -f <(seq `nhentai latest-gid` -1 1)
 $ tree galleries
 galleries
 ├── ...
