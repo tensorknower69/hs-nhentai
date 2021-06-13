@@ -74,8 +74,7 @@ instance FromJSON APITagType where
       Just j -> pure $ APITagType j
       Nothing -> fail $ "unknown tag type: " <> show v'
 
--- e.g. https://i.nhentai.net/galleries/900513/2.00 https://nhentai.net/api/gallery/155974
--- e.g. https://nhentai.net/g/155844/24/
+-- e.g. https://i.nhentai.net/galleries/900513/2.00, https://nhentai.net/api/gallery/155974, https://nhentai.net/g/155844/24/
 newtype APIImageType = APIImageType { unAPIImageType :: Either String ImageType } deriving (Show, Eq)
 
 instance FromJSON APIImageType where
