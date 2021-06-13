@@ -40,8 +40,8 @@ downloadOptionsParser = DownloadOptions
 
 data DownloadWarningOptions
   = DownloadWarningOptions
-    { _downloadWarnLeastSize :: Maybe (Refined NonNegative Int64)
-    , _downloadWarnMostDuration :: Maybe POSIXTime
+    { _downloadWarnMinSize :: Maybe (Refined NonNegative Int64)
+    , _downloadWarnMinDuration :: Maybe POSIXTime
     }
   deriving (Show, Eq)
 
@@ -49,15 +49,15 @@ makeClassy ''DownloadWarningOptions
 
 downloadWarningOptionsParser :: Parser DownloadWarningOptions
 downloadWarningOptionsParser = DownloadWarningOptions
-  <$> ((Just <$> warn_least_size_parser) <|> pure Nothing)
-  <*> ((Just <$> warn_most_duration_parser) <|> pure Nothing)
+  <$> ((Just <$> warn_min_size_parser) <|> pure Nothing)
+  <*> ((Just <$> warn_min_duration_parser) <|> pure Nothing)
   where
-  warn_least_size_parser = option refineReadM
+  warn_min_size_parser = option refineReadM
     ( long "warn-min-size"
     <> metavar "NUM_BYTES"
     <> help "Set size of content warning threshold"
     )
-  warn_most_duration_parser = fmap (realToFrac . unrefine) $ option (refineReadM @Double @NonNegative)
+  warn_min_duration_parser = fmap (realToFrac . unrefine) $ option (refineReadM @Double @NonNegative)
     ( long "warn-min-duration"
     <> metavar "DURATION"
     <> help "Set download duration warning threshold"

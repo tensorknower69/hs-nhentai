@@ -17,6 +17,7 @@ import Refined
 import Streaming (Stream, Of)
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.List.NonEmpty as L
+import qualified Data.Text as T
 import qualified Streaming.Internal as S
 import qualified Streaming.Prelude as S
 
@@ -91,3 +92,9 @@ withTimer_ = fmap fst . withTimer
 
 enumerate :: (Integral i, Monad m) => Stream (Of a) m r -> Stream (Of (i, a)) m r
 enumerate = S.zip (S.enumFrom 1)
+
+byteSizeToString :: (Show a, Integral a) => a -> String
+byteSizeToString size = show size <> "B"
+
+byteSizeToText :: (Show a, Integral a) => a -> T.Text
+byteSizeToText = T.pack . byteSizeToString

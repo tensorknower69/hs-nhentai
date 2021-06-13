@@ -17,18 +17,21 @@ import Control.Monad.Except
 import Control.Monad.Logger
 import Control.Monad.Trans.Control
 import Data.Aeson hiding (json)
+import Data.Char
 import Data.NHentai.API.Gallery
 import Data.NHentai.Scraper.HomePage
 import Data.NHentai.Scraper.Types
 import Data.NHentai.Types
 import Data.Time
 import Data.Time.Format.ISO8601
+import Data.Version (showVersion)
 import NHentai.Options
 import NHentai.Utils
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import Network.HTTP.Types.Status
 import Options.Applicative
+import Paths_nhentai (version)
 import Refined
 import Streaming (Stream, Of)
 import System.Directory
@@ -41,8 +44,6 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
 import qualified Streaming.Concurrent as S
 import qualified Streaming.Prelude as S
-import Paths_nhentai (version)
-import Data.Version (showVersion)
 
 class HasManager a where
   manager :: Lens' a Manager
@@ -60,11 +61,11 @@ requestFromModernURI cfg uri = do
 
   rep <- fix $ \loop -> do
     rep <- (liftIO $ httpLbs req' (cfg ^. manager)) `catch` \(e :: SomeException) -> do
-      $logError $ "Redownloading, error when doing request: " <> render uri <> "\n- Error: " <> T.pack (show e)
+      $logError $ "redownload " <> render uri <> " due to error occurred when doing http request: " <> T.pack (show e)
       loop
 
     if responseStatus rep == serviceUnavailable503 then do
-      $logError $ "Redownloading, abnormal status code: 503, URI: " <> render uri
+      $logError $ "redownload " <> render uri <> " due to abnormal status code 503 (service unavailable)"
       loop
     else do
       pure rep
@@ -108,33 +109,22 @@ runDownload :: (MonadCatch m, MonadLoggerIO m, HasManager cfg, HasDownloadWarnin
 runDownload cfg (Download uri dest_path) = do
   file_exist <- liftIO $ doesFileExist dest_path
   if file_exist then do
-    $logDebug $ "Skipped downloading: " <> arrow_text <> ", file exists"
+    $logInfo $ "skipped downloading " <> download_info <> ": file exists"
   else do
-    $logDebug $ "Downloading: " <> arrow_text <> "..."
+    $logDebug $ "downloading " <> download_info
 
-    (dt, body) <- withTimer $ requestFromModernURI (cfg ^. manager) uri
+    (delta_time, body) <- withTimer $ requestFromModernURI (cfg ^. manager) uri
 
     let body_length = BL.length body
-    $logDebug $ "Downloaded: " <> arrow_text <> ", took " <> T.pack (show dt) <> ", byte length: " <> T.pack (show body_length)
+    $logInfo $ "downloaded " <> download_info <> ": took " <> T.pack (show delta_time) <> ", size: " <> byteSizeToText body_length
 
-    if_just (cfg ^. downloadWarnLeastSize) $ \least_size -> do
+    if_just (cfg ^. downloadWarnMinSize) $ \least_size -> do
       when (body_length <= unrefine least_size) $ do
-        $logWarn $ "Downloaded content's size is too small: "
-          <> T.pack (show body_length)
-          <> " (<= "
-          <> T.pack (show $ unrefine least_size)
-          <> " bytes): "
-          <> arrow_text
-          <> ", the content may be invalid or not"
+        $logWarn $ "downloaded " <> download_info <> ", but: downloaded content's size (" <> byteSizeToText body_length <> ") is too small (<= " <> byteSizeToText (unrefine least_size) <> "), the content may be invalid"
 
-    if_just (cfg ^. downloadWarnMostDuration) $ \most_dt -> do
-      when (dt > most_dt) $ do
-        $logWarn $ "Downloading time took too long: "
-          <> T.pack (show dt)
-          <> " (>= "
-          <> T.pack (show most_dt)
-          <> "): "
-          <> arrow_text
+    if_just (cfg ^. downloadWarnMinDuration) $ \min_duration -> do
+      when (delta_time > min_duration) $ do
+        $logWarn $ "downloaded " <> download_info <> ", but: download time (" <> T.pack (show delta_time) <> ") is too long (>= " <> T.pack (show min_duration) <> ")"
 
     liftIO $ do
       createDirectoryIfMissing True (takeDirectory dest_path)
@@ -142,7 +132,8 @@ runDownload cfg (Download uri dest_path) = do
   where
   if_just (Just v) m = m v
   if_just Nothing _ = pure ()
-  arrow_text = render uri <> " -> " <> T.pack dest_path
+
+  download_info = render uri <> " -> " <> T.pack dest_path
 
 fetchGallery
   ::
@@ -164,13 +155,12 @@ fetchGallery cfg gid = do
 
   case eitherDecode @APIGalleryResult body of
     Left err -> do
-      $logError $ "Unable to decode JSON from gallery: " <> T.pack (show $ unrefine gid) <> "\n- Error: " <> T.pack err <> "\n- Body: " <> T.pack (show body)
-      $logInfo $ "Redownloading " <> T.pack (show $ unrefine gid) <> "..."
+      $logError $ "redownload gallery " <> T.pack (show $ unrefine gid) <> "unable to decode JSON from gallery " <> T.pack (show $ unrefine gid) <> ", body: " <> T.pack (show body) <> ": " <> T.pack err
       liftIO $ removeFile gallery_json_path
       fetchGallery cfg gid
 
     Right (APIGalleryResultError _) -> do
-      $logWarn $ "Gallery is dead: " <> T.pack (show $ unrefine gid) <> ", skipping"
+      $logWarn $ "skip gallery " <> T.pack (show $ unrefine gid) <> ": gallery is dead"
       pure ()
 
     Right (APIGalleryResultSuccess g) -> extractDownloads g
@@ -208,7 +198,7 @@ runMainOptions (MainOptionsDownload {..}) = do
       , _cfgDownloadWarningOptions = downloadWarningOptions'MainOptionsDownload
       }
   dt <- withTimer_ $ run cfg gidInputOption'MainOptionsDownload
-  $logInfo $ "Done downloading all galleries! Time taken: " <> T.pack (show dt)
+  $logInfo $ "done downloading all galleries, time taken: " <> T.pack (show dt)
   where
   run cfg (GidInputOptionSingle gid) = download_gids cfg (S.yield gid)
   run cfg (GidInputOptionListFile file_path) = do
@@ -254,7 +244,8 @@ main = do
       )
       (runMainOptions (mainOptions'ProgramOptions options))
   runLoggingT filtered $ \loc source level logstr -> do
-    let lvl_name = toLogStr $ drop 5 (show level)
-    t <- getCurrentTime
-    let line = toLogStr (iso8601Show t) <> ": " <> lvl_name <> ": " <> toLogStr logstr <> "\n"
+    time <- getCurrentTime
+    let line = toLogStr (iso8601Show time) <> ": [" <> logLevelToLogStr level <> "] " <> toLogStr logstr <> "\n"
     BSC.hPutStr stderr $ fromLogStr line
+  where
+  logLevelToLogStr level = toLogStr $ toLower <$> drop 5 (show level)
