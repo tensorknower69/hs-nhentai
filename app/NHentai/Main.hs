@@ -41,6 +41,8 @@ import qualified Data.ByteString.Lazy as BL
 import qualified Data.Text as T
 import qualified Streaming.Concurrent as S
 import qualified Streaming.Prelude as S
+import Paths_nhentai (version)
+import Data.Version (showVersion)
 
 class HasManager a where
   manager :: Lens' a Manager
@@ -51,9 +53,10 @@ instance HasManager Manager where
 requestFromModernURI :: (MonadLoggerIO m, MonadCatch m, MonadIO m, HasManager cfg) => cfg -> URI -> m BL.ByteString
 requestFromModernURI cfg uri = do
   req <- parseRequest (renderStr uri)
-  let req' = req
-    { responseTimeout = responseTimeoutNone
-    }
+  let
+    req' = req
+      { responseTimeout = responseTimeoutNone
+      }
 
   rep <- fix $ \loop -> do
     rep <- (liftIO $ httpLbs req' (cfg ^. manager)) `catch` \(e :: SomeException) -> do
@@ -186,9 +189,10 @@ fetchGallery cfg gid = do
           <> ", the image is probably invalid, skipping"
         pure ()
       Right imgtype -> do
-        let f flag_lens mk_uri path_maker_lens = when (cfg ^. flag_lens) $ do
-          uri <- lift $ mk_uri (g ^. mediaId) pageidx imgtype
-          S.yield $ Download uri ((cfg ^. path_maker_lens) (g ^. galleryId) (g ^. mediaId) pageidx imgtype)
+        let
+          f flag_lens mk_uri path_maker_lens = when (cfg ^. flag_lens) $ do
+            uri <- lift $ mk_uri (g ^. mediaId) pageidx imgtype
+            S.yield $ Download uri ((cfg ^. path_maker_lens) (g ^. galleryId) (g ^. mediaId) pageidx imgtype)
 
         f downloadPageThumbnailFlag mkPageThumbnailUri pageThumbPathMaker
         f downloadPageImageFlag mkPageImageUri pageImagePathMaker
@@ -196,12 +200,13 @@ fetchGallery cfg gid = do
 runMainOptions :: (MonadMask m, MonadBaseControl IO m, MonadLoggerIO m) => MainOptions -> m ()
 runMainOptions (MainOptionsDownload {..}) = do
   mgr <- newTlsManager
-  let cfg = Config
-    { _cfgManager = mgr
-    , _cfgOutputConfig = outputConfig'MainOptionsDownload
-    , _cfgDownloadOptions = downloadOptions'MainOptionsDownload
-    , _cfgDownloadWarningOptions = downloadWarningOptions'MainOptionsDownload
-    }
+  let
+    cfg = Config
+      { _cfgManager = mgr
+      , _cfgOutputConfig = outputConfig'MainOptionsDownload
+      , _cfgDownloadOptions = downloadOptions'MainOptionsDownload
+      , _cfgDownloadWarningOptions = downloadWarningOptions'MainOptionsDownload
+      }
   dt <- withTimer_ $ run cfg gidInputOption'MainOptionsDownload
   $logInfo $ "Done downloading all galleries! Time taken: " <> T.pack (show dt)
   where
@@ -229,7 +234,7 @@ runMainOptions (MainOptionsDownload {..}) = do
       (S.for gid_stream (fetchGallery cfg))
       S.effects
 
-runMainOptions MainOptionsVersion = liftIO $ putStrLn "0.1.3.0"
+runMainOptions MainOptionsVersion = liftIO $ putStrLn (showVersion version)
 runMainOptions MainOptionsLatestGid = do
   mgr <- newTlsManager
   latest_gid <- getLatestGalleryId mgr
@@ -241,12 +246,13 @@ main = do
     ( fullDesc
     <> progDesc "A scraper/downloader for nhentai.net"
     )
-  let filtered = filterLogger
-    (\_ level -> case maybeLogLevel'ProgramOptions options of
-      Nothing -> False
-      Just level' -> level' <= level
-    )
-    $ runMainOptions (mainOptions'ProgramOptions options)
+  let
+    filtered = filterLogger
+      (\_ level -> case maybeLogLevel'ProgramOptions options of
+        Nothing -> False
+        Just level' -> level' <= level
+      )
+      (runMainOptions (mainOptions'ProgramOptions options))
   runLoggingT filtered $ \loc source level logstr -> do
     let lvl_name = toLogStr $ drop 5 (show level)
     t <- getCurrentTime
