@@ -47,53 +47,53 @@ type MediaId = Refined Positive Int
 type PageIndex = Refined Positive Int
 -- |The tag types, this is what you see next to the cover page of a gallery when viewing one.
 data TagType
-	= TagTag
-	| LanguageTag
-	| CategoryTag
-	| CharacterTag
-	| GroupTag
-	| ArtistTag
-	| ParodyTag
-	deriving (Show, Eq, Read)
+  = TagTag
+  | LanguageTag
+  | CategoryTag
+  | CharacterTag
+  | GroupTag
+  | ArtistTag
+  | ParodyTag
+  deriving (Show, Eq, Read)
 
 data ImageType
-	= JPG -- ^.jpeg type
-	| PNG -- ^.png type
-	| GIF -- ^.gif type, pretty rare.
-	deriving (Show, Eq, Read)
+  = JPG -- ^.jpeg type
+  | PNG -- ^.png type
+  | GIF -- ^.gif type, pretty rare.
+  deriving (Show, Eq, Read)
 
 extension :: Prism' String ImageType
 extension = prism' a b
-	where
-	a = map toLower . show
-	b (c : _) = c ^? extensionChar
-	b _ = Nothing
+  where
+  a = map toLower . show
+  b (c : _) = c ^? extensionChar
+  b _ = Nothing
 
 extensionChar :: Prism' Char ImageType
 extensionChar = prism' a b
-	where
-	a = toLower . head . show
-	b 'j' = Just JPG
-	b 'p' = Just PNG
-	b 'g' = Just GIF
-	b _ = Nothing
+  where
+  a = toLower . head . show
+  b 'j' = Just JPG
+  b 'p' = Just PNG
+  b 'g' = Just GIF
+  b _ = Nothing
 
 data ImageSpec
-	-- ^An ImageSpec is basically an image's metadata. Mostly used for finding out the image type of an image.
-	= ImageSpec
-		{ _eitherImageType :: Either String ImageType -- ^The image type of the image spec, sometimes the image type is '0' or '1' or '2' or other stuff. That's why this is an Either.
-		, _width :: Refined Positive Int -- ^The width of the image.
-		, _height :: Refined Positive Int -- ^The height of the image.
-		}
-	deriving (Show, Eq)
+  -- ^An ImageSpec is basically an image's metadata. Mostly used for finding out the image type of an image.
+  = ImageSpec
+    { _eitherImageType :: Either String ImageType -- ^The image type of the image spec, sometimes the image type is '0' or '1' or '2' or other stuff. That's why this is an Either.
+    , _width :: Refined Positive Int -- ^The width of the image.
+    , _height :: Refined Positive Int -- ^The height of the image.
+    }
+  deriving (Show, Eq)
 
 makeLenses ''ImageSpec
 
 class HasGalleryId a where
-	galleryId :: Lens' a GalleryId
+  galleryId :: Lens' a GalleryId
 
 class HasMediaId a where
-	mediaId :: Lens' a MediaId
+  mediaId :: Lens' a MediaId
 
 class HasTitle a where
-	title :: Lens' a T.Text
+  title :: Lens' a T.Text

@@ -35,34 +35,34 @@ import Text.URI.Lens
 import Text.URI.QQ
 
 data HomePage
-	= HomePage
-		{ _homePagePagination :: Pagination
-		, _popularGalleries :: [ScraperGallery]
-		, _recentGalleries :: NonEmpty ScraperGallery
-		}
-	deriving (Show, Eq)
+  = HomePage
+    { _homePagePagination :: Pagination
+    , _popularGalleries :: [ScraperGallery]
+    , _recentGalleries :: NonEmpty ScraperGallery
+    }
+  deriving (Show, Eq)
 
 makeLenses ''HomePage
 
 instance HasPagination HomePage where
-	pagination = homePagePagination
+  pagination = homePagePagination
 
 homePageScraper :: (Show str, StringLike str) => Scraper str HomePage
 homePageScraper = do
-	-- recent must be scrapped first
-	recent' <- containerScraper []
-	case nonEmpty recent' of
-		Nothing -> fail "no recent galleries"
-		Just recent -> do
-			pagin <- chroot ("section" @: [hasClass "pagination"]) paginationScraper
-			popular <- containerScraper ["index-popular"] <|> pure []
-			pure $ HomePage pagin popular recent
-	where
-	containerScraper index_classes = chroots ("div" @: ["class" @= intercalate " " (["container", "index-container"] <> index_classes)] // "div" @: [hasClass "gallery"]) galleryScraper
+  -- recent must be scrapped first
+  recent' <- containerScraper []
+  case nonEmpty recent' of
+    Nothing -> fail "no recent galleries"
+    Just recent -> do
+      pagin <- chroot ("section" @: [hasClass "pagination"]) paginationScraper
+      popular <- containerScraper ["index-popular"] <|> pure []
+      pure $ HomePage pagin popular recent
+  where
+  containerScraper index_classes = chroots ("div" @: ["class" @= intercalate " " (["container", "index-container"] <> index_classes)] // "div" @: [hasClass "gallery"]) galleryScraper
 
 mkHomePageUri :: MonadThrow m => PageIndex -> m URI
 mkHomePageUri page = do
-	page_query_value <- mkQueryValue $ show (unrefine page) ^. packed
-	pure $ prefix & uriQuery .~ [ QueryParam [queryKey|page|] page_query_value ]
-	where
-	prefix = [uri|https://nhentai.net|]
+  page_query_value <- mkQueryValue $ show (unrefine page) ^. packed
+  pure $ prefix & uriQuery .~ [ QueryParam [queryKey|page|] page_query_value ]
+  where
+  prefix = [uri|https://nhentai.net|]
